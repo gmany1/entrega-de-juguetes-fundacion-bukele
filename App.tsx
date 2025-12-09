@@ -1,4 +1,5 @@
 import React from 'react';
+import './index.css';
 import Hero from './components/Hero';
 import InfoSection from './components/InfoSection';
 import RegistrationForm from './components/RegistrationForm';

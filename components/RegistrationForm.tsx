@@ -370,6 +370,14 @@ const RegistrationForm: React.FC = () => {
             <p className="text-center text-xs text-slate-400 mt-4">
               Al registrarte aceptas ser contactado vía WhatsApp para la logística del evento.
             </p>
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 text-center">
+              <p className="text-sm text-blue-800 font-medium">
+                ¿Tienes más de una invitación?
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Podrás registrar al siguiente niño/a inmediatamente después de completar este registro.
+              </p>
+            </div>
           </div>
 
         </form>

@@ -43,7 +43,9 @@ const RegistrationForm: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    // Force uppercase for inviteNumber
+    const val = name === 'inviteNumber' ? value.toUpperCase() : value;
+    setFormData(prev => ({ ...prev, [name]: val }));
     if (error) setError(null);
   };
 
@@ -52,12 +54,23 @@ const RegistrationForm: React.FC = () => {
       setError("El nombre completo es obligatorio.");
       return false;
     }
+
+    // Validate Invite Number Format: NI0001 - NI1000
+    const inviteRegex = /^NI(\d{4})$/i; // Case insensitive
     if (!formData.inviteNumber.trim()) {
       setError("El número de invitación es obligatorio.");
       return false;
     }
-    if (!/^\d+$/.test(formData.inviteNumber)) {
-      setError("El número de invitación debe contener solo números.");
+    const match = formData.inviteNumber.trim().match(inviteRegex);
+
+    if (!match) {
+      setError("El número de invitación debe tener el formato NI seguido de 4 dígitos (ej. NI0001).");
+      return false;
+    }
+
+    const inviteNum = parseInt(match[1], 10);
+    if (inviteNum < 1 || inviteNum > 1000) {
+      setError("El número de invitación debe estar entre NI0001 y NI1000.");
       return false;
     }
 
@@ -70,7 +83,7 @@ const RegistrationForm: React.FC = () => {
       return false;
     }
 
-    // childCount is now fixed to 1, no validation needed.
+    // childCount is fixed to 1
 
     if (!formData.addressDetails.trim()) {
       setError("Debes especificar tu colonia, caserío o cantón.");
@@ -78,6 +91,17 @@ const RegistrationForm: React.FC = () => {
     }
 
     return true;
+  };
+
+  const handleRegisterAnother = () => {
+    setSubmittedData(null);
+    setFormData(prev => ({
+      ...prev,
+      inviteNumber: '', // Clear invite number for new child
+      genderSelection: 'Niño', // Reset gender
+      // Keep Name, WhatsApp, Address for faster flow
+    }));
+    setError(null);
   };
 
   const generateWhatsAppLink = (name: string, count: number, gender: string) => {
@@ -167,12 +191,23 @@ const RegistrationForm: React.FC = () => {
           Gracias <strong>{submittedData.name}</strong>. Hemos procesado tu solicitud.
           Se ha abierto una ventana de WhatsApp para confirmar tu asistencia.
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="text-green-800 underline hover:text-green-900"
-        >
-          Volver al inicio
-        </button>
+
+        <div className="flex flex-col gap-3 justify-center items-center">
+          <button
+            onClick={handleRegisterAnother}
+            className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:bg-blue-700 transition-colors w-full md:w-auto flex items-center justify-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            Registrar otro niño/a (Nueva Invitación)
+          </button>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="text-green-800 underline hover:text-green-900 mt-2"
+          >
+            Terminar y volver al inicio
+          </button>
+        </div>
       </div>
     );
   }

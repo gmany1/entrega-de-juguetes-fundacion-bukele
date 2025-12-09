@@ -46,12 +46,7 @@ export const saveRegistration = async (data: Omit<Registration, 'id' | 'timestam
       return { success: false, message: `El número de invitación ${data.inviteNumber} ya ha sido utilizado.` };
     }
 
-    // 3. Check Duplicate WhatsApp
-    const qPhone = query(collection(db, COLLECTION_NAME), where("whatsapp", "==", data.whatsapp), limit(1));
-    const phoneSnap = await getDocs(qPhone);
-    if (!phoneSnap.empty) {
-      return { success: false, message: `El número de WhatsApp ${data.whatsapp} ya está registrado.` };
-    }
+    // 3. Duplicate WhatsApp check removed to allow multiple children per parent
 
     // 4. Save to Firestore
     const newRegistrationData = {

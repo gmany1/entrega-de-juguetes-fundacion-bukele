@@ -7,14 +7,14 @@ const RegistrationForm: React.FC = () => {
   const { config } = useConfig();
   const [remainingSlots, setRemainingSlots] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedData, setSubmittedData] = useState<{ name: string, count: number, gender: string } | null>(null);
+  const [submittedData, setSubmittedData] = useState<{ name: string, count: number } | null>(null);
+
+  // New state for children list
+  const [children, setChildren] = useState([{ id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño' }]);
 
   const [formData, setFormData] = useState({
     fullName: '',
-    inviteNumber: '',
     whatsapp: '',
-    childCount: 1,
-    genderSelection: 'Niño',
     department: config.defaultDepartment,
     municipality: config.defaultMunicipality,
     district: config.defaultDistrict,
@@ -43,34 +43,36 @@ const RegistrationForm: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    // Force uppercase for inviteNumber
-    const val = name === 'inviteNumber' ? value.toUpperCase() : value;
-    setFormData(prev => ({ ...prev, [name]: val }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (error) setError(null);
+  };
+
+  const handleChildChange = (id: string, field: 'inviteNumber' | 'gender', value: string) => {
+    setChildren(prev => prev.map(child => {
+      if (child.id === id) {
+        return {
+          ...child,
+          [field]: field === 'inviteNumber' ? value.toUpperCase() : value
+        };
+      }
+      return child;
+    }));
+    if (error) setError(null);
+  };
+
+  const addChild = () => {
+    setChildren(prev => [...prev, { id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño' }]);
+  };
+
+  const removeChild = (id: string) => {
+    if (children.length > 1) {
+      setChildren(prev => prev.filter(c => c.id !== id));
+    }
   };
 
   const validate = (): boolean => {
     if (!formData.fullName.trim()) {
       setError("El nombre completo es obligatorio.");
-      return false;
-    }
-
-    // Validate Invite Number Format: NI0001 - NI1000
-    const inviteRegex = /^NI(\d{4})$/i; // Case insensitive
-    if (!formData.inviteNumber.trim()) {
-      setError("El número de invitación es obligatorio.");
-      return false;
-    }
-    const match = formData.inviteNumber.trim().match(inviteRegex);
-
-    if (!match) {
-      setError("El número de invitación debe tener el formato NI seguido de 4 dígitos (ej. NI0001).");
-      return false;
-    }
-
-    const inviteNum = parseInt(match[1], 10);
-    if (inviteNum < 1 || inviteNum > 1000) {
-      setError("El número de invitación debe estar entre NI0001 y NI1000.");
       return false;
     }
 
@@ -83,36 +85,42 @@ const RegistrationForm: React.FC = () => {
       return false;
     }
 
-    // childCount is fixed to 1
-
     if (!formData.addressDetails.trim()) {
       setError("Debes especificar tu colonia, caserío o cantón.");
       return false;
     }
 
+    // Validate Children
+    const inviteRegex = /^NI(\d{4})$/i;
+    const usedInvites = new Set();
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (!child.inviteNumber.trim()) {
+        setError(`El número de invitación es obligatorio para el niño #${i + 1}.`);
+        return false;
+      }
+
+      const match = child.inviteNumber.trim().match(inviteRegex);
+      if (!match) {
+        setError(`La invitación "${child.inviteNumber}" (Niño #${i + 1}) debe tener el formato NIxxxx (ej. NI0001).`);
+        return false;
+      }
+
+      const inviteNum = parseInt(match[1], 10);
+      if (inviteNum < 1 || inviteNum > 1000) {
+        setError(`La invitación "${child.inviteNumber}" debe estar entre NI0001 y NI1000.`);
+        return false;
+      }
+
+      if (usedInvites.has(child.inviteNumber.trim())) {
+        setError(`La invitación "${child.inviteNumber}" está duplicada en este formulario.`);
+        return false;
+      }
+      usedInvites.add(child.inviteNumber.trim());
+    }
+
     return true;
-  };
-
-  const handleRegisterAnother = () => {
-    setSubmittedData(null);
-    setFormData(prev => ({
-      ...prev,
-      inviteNumber: '', // Clear invite number for new child
-      genderSelection: 'Niño', // Reset gender
-      // Keep Name, WhatsApp, Address for faster flow
-    }));
-    setError(null);
-  };
-
-  const generateWhatsAppLink = (name: string, count: number, gender: string) => {
-    // Use template from config
-    let message = config.whatsappTemplate;
-    message = message.replace('{name}', name);
-    message = message.replace('{count}', count.toString());
-    message = message.replace('{gender}', gender);
-    message = message.replace('{date}', config.eventDate);
-
-    return `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(message)}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,42 +128,54 @@ const RegistrationForm: React.FC = () => {
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setError(null);
 
     try {
-      const result = await saveRegistration({
-        ...formData,
-        childCount: 1 // Always 1 per invite
-      }, config.maxRegistrations);
+      // Sequential submission
+      for (const child of children) {
+        const result = await saveRegistration({
+          fullName: formData.fullName,
+          inviteNumber: child.inviteNumber,
+          whatsapp: formData.whatsapp,
+          childCount: 1, // Logic remains 1 entry per invite
+          genderSelection: child.gender,
+          department: formData.department,
+          municipality: formData.municipality,
+          district: formData.district,
+          addressDetails: formData.addressDetails
+        }, config.maxRegistrations);
 
-      if (result.success && result.data) {
-        setSubmittedData({
-          name: result.data.fullName,
-          count: result.data.childCount,
-          gender: result.data.genderSelection
-        });
-
-        const slots = await getRemainingSlots(config.maxRegistrations);
-        setRemainingSlots(slots);
-
-        const link = generateWhatsAppLink(
-          result.data.fullName,
-          result.data.childCount,
-          result.data.genderSelection
-        );
-
-        window.open(link, '_blank');
-      } else {
-        setError(result.message || "Ocurrió un error al guardar el registro.");
+        if (!result.success) {
+          throw new Error(`Error con la invitación ${child.inviteNumber}: ${result.message}`);
+        }
       }
-    } catch (err) {
+
+      // Handle success
+      setSubmittedData({
+        name: formData.fullName,
+        count: children.length
+      });
+
+      // Refresh slots
+      const slots = await getRemainingSlots(config.maxRegistrations);
+      setRemainingSlots(slots);
+
+      // Open WhatsApp for the first child (or generic)
+      // Using the logic: we just need one contact point.
+      const firstChild = children[0];
+      const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(
+        `Hola, soy ${formData.fullName}. He registrado ${children.length} niño(s) para la entrega de juguetes. Invitación(es): ${children.map(c => c.inviteNumber).join(', ')}.`
+      )}`;
+      window.open(link, '_blank');
+
+    } catch (err: any) {
       console.error(err);
-      setError("Error de conexión.");
+      setError(err.message || "Error de conexión.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Check if registration is explicitly closed or full
   const isClosed = !config.isRegistrationOpen || remainingSlots <= 0;
 
   if (isClosed) {
@@ -188,26 +208,15 @@ const RegistrationForm: React.FC = () => {
         </div>
         <h2 className="text-3xl font-bold text-green-800 mb-4">¡Registro Exitoso!</h2>
         <p className="text-green-700 text-lg mb-6">
-          Gracias <strong>{submittedData.name}</strong>. Hemos procesado tu solicitud.
+          Gracias <strong>{submittedData.name}</strong>. Hemos procesado el registro de {submittedData.count} niño(s).
           Se ha abierto una ventana de WhatsApp para confirmar tu asistencia.
         </p>
-
-        <div className="flex flex-col gap-3 justify-center items-center">
-          <button
-            onClick={handleRegisterAnother}
-            className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:bg-blue-700 transition-colors w-full md:w-auto flex items-center justify-center gap-2"
-          >
-            <Send className="w-4 h-4" />
-            Registrar otro niño/a (Nueva Invitación)
-          </button>
-
-          <button
-            onClick={() => window.location.reload()}
-            className="text-green-800 underline hover:text-green-900 mt-2"
-          >
-            Terminar y volver al inicio
-          </button>
-        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-green-800 underline hover:text-green-900"
+        >
+          Volver al inicio
+        </button>
       </div>
     );
   }
@@ -217,9 +226,7 @@ const RegistrationForm: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
           <h3 className="font-semibold text-slate-700">Formulario de Registro</h3>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${remainingSlots < 50 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
-            {remainingSlots} cupos disponibles
-          </span>
+          {/* Removed specific slot count as requested */}
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-5">
@@ -230,6 +237,7 @@ const RegistrationForm: React.FC = () => {
             </div>
           )}
 
+          {/* Responsible Info */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo del Responsable</label>
             <input
@@ -243,66 +251,87 @@ const RegistrationForm: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Número de Invitación</label>
-              <input
-                type="text"
-                name="inviteNumber"
-                value={formData.inviteNumber}
-                onChange={handleChange}
-                placeholder="Ej. 1045"
-                disabled={isSubmitting}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50"
-              />
-              <p className="text-xs text-slate-400 mt-1">Debe ser un número único.</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Número de WhatsApp</label>
-              <input
-                type="tel"
-                name="whatsapp"
-                value={formData.whatsapp}
-                onChange={handleChange}
-                placeholder="7000-0000"
-                disabled={isSubmitting}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Número de WhatsApp</label>
+            <input
+              type="tel"
+              name="whatsapp"
+              value={formData.whatsapp}
+              onChange={handleChange}
+              placeholder="7000-0000"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50"
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Género del niño/a</label>
-              <div className="flex gap-4 mt-2">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="genderSelection"
-                    value="Niño"
-                    checked={formData.genderSelection === 'Niño'}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                    className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="ml-2 text-slate-700">Niño</span>
-                </label>
-                <label className="inline-flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="genderSelection"
-                    value="Niña"
-                    checked={formData.genderSelection === 'Niña'}
-                    onChange={handleChange}
-                    disabled={isSubmitting}
-                    className="w-5 h-5 text-pink-500 border-gray-300 focus:ring-pink-500"
-                  />
-                  <span className="ml-2 text-slate-700">Niña</span>
-                </label>
-              </div>
+          {/* Children List */}
+          <div className="border-t border-slate-100 pt-4">
+            <h4 className="font-semibold text-slate-700 mb-3">Información de los niños</h4>
+            <div className="space-y-4">
+              {children.map((child, index) => (
+                <div key={child.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200 relative">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">N° Invitación (Niño #{index + 1})</label>
+                      <input
+                        type="text"
+                        value={child.inviteNumber}
+                        onChange={(e) => handleChildChange(child.id, 'inviteNumber', e.target.value)}
+                        placeholder="NI0001"
+                        disabled={isSubmitting}
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Género</label>
+                      <div className="flex gap-3 mt-2">
+                        <label className="inline-flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`gender-${child.id}`}
+                            value="Niño"
+                            checked={child.gender === 'Niño'}
+                            onChange={(e) => handleChildChange(child.id, 'gender', e.target.value)}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className="ml-1 text-sm text-slate-700">Niño</span>
+                        </label>
+                        <label className="inline-flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`gender-${child.id}`}
+                            value="Niña"
+                            checked={child.gender === 'Niña'}
+                            onChange={(e) => handleChildChange(child.id, 'gender', e.target.value)}
+                            className="w-4 h-4 text-pink-500"
+                          />
+                          <span className="ml-1 text-sm text-slate-700">Niña</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  {children.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeChild(child.id)}
+                      className="absolute -top-2 -right-2 bg-red-100 text-red-500 rounded-full p-1 hover:bg-red-200"
+                      title="Eliminar"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-            {/* Hidden input for childCount to keep compatibility standard */}
-            <input type="hidden" name="childCount" value="1" />
+            <button
+              type="button"
+              onClick={addChild}
+              className="mt-3 text-sm text-blue-600 font-semibold hover:text-blue-800 flex items-center gap-1"
+            >
+              + Agregar otro niño/a y invitación
+            </button>
           </div>
 
           {/* Fixed Location Section - Now reads from config defaults */}
@@ -370,14 +399,6 @@ const RegistrationForm: React.FC = () => {
             <p className="text-center text-xs text-slate-400 mt-4">
               Al registrarte aceptas ser contactado vía WhatsApp para la logística del evento.
             </p>
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100 text-center">
-              <p className="text-sm text-blue-800 font-medium">
-                ¿Tienes más de una invitación?
-              </p>
-              <p className="text-xs text-blue-600 mt-1">
-                Podrás registrar al siguiente niño/a inmediatamente después de completar este registro.
-              </p>
-            </div>
           </div>
 
         </form>

@@ -76,12 +76,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   defaultDepartment: "Santa Ana",
   defaultMunicipality: "Santa Ana Este",
   defaultDistrict: "El Congo",
-  orgPhoneNumber: "50360605555",
-  whatsappTemplate: "Hola {name}, hemos recibido tu registro para la entrega de juguetes de la Fundación Bukele. Has inscrito {count} {gender}. El evento se realizará el día {date}. Los detalles de lugar y hora te los enviaremos por este mismo medio. Te sugerimos guardar este número para futuras comunicaciones. ¡Bendiciones para tu familia!",
+  orgPhoneNumber: "50379017014",
+  whatsappTemplate: "*Hola, soy {name}.*\\nConfirmo mi asistencia al evento *“Compartiendo Sonrisas”*.\\nHe registrado *{count} invitaciones*:\\n• {invites}\\n\\n👉 *Solicito que me envíen los detalles de lugar y hora por este mismo medio.*\\n\\n📲 Guardaré este número en mis contactos para futuras comunicaciones.\\n\\n🙏 *¡Que Dios me los bendiga!*",
 
   // Default vCard
   vCardName: "Fundación Bukele",
   vCardOrg: "Fundación Armando Bukele",
-  vCardPhone: "50360605555",
+  vCardPhone: "50379017014",
   vCardUrl: "https://www.fundacionbukele.org"
 };

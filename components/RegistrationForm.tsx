@@ -184,7 +184,7 @@ const RegistrationForm: React.FC = () => {
       // Using the logic: we just need one contact point.
       const firstChild = children[0];
       const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(
-        `Hola, soy ${formData.fullName}. Confirmo mi asistencia al evento "Compartiendo Sonrisas". He registrado ${children.length} invitaciones: ${children.map(c => c.inviteNumber).join(', ')}.`
+        `*Hola, soy ${formData.fullName}.*\nConfirmo mi asistencia al evento *“Compartiendo Sonrisas”*.\nHe registrado *${children.length} invitaciones*:\n• ${children.map(c => c.inviteNumber).join(', ')}\n\n👉 *Solicito que me envíen los detalles de lugar y hora por este mismo medio.*\n\n📲 Guardaré este número en mis contactos para futuras comunicaciones.\n\n🙏 *¡Que Dios me los bendiga!*`
       )}`;
       window.open(link, '_blank');
 

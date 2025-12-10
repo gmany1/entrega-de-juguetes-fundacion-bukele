@@ -35,6 +35,7 @@ const RegistrationForm: React.FC = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     whatsapp: '',
+    ticketDistributor: '',
     department: config.defaultDepartment,
     municipality: config.defaultMunicipality,
     district: config.defaultDistrict,
@@ -105,6 +106,11 @@ const RegistrationForm: React.FC = () => {
       return false;
     }
 
+    if (!formData.ticketDistributor && config.ticketDistributors && config.ticketDistributors.length > 0) {
+      setError("Debes seleccionar quién te entregó los tickets.");
+      return false;
+    }
+
     if (!formData.addressDetails.trim()) {
       setError("Debes especificar tu colonia, caserío o cantón.");
       return false;
@@ -172,6 +178,7 @@ const RegistrationForm: React.FC = () => {
           fullName: formData.fullName,
           inviteNumber: child.inviteNumber,
           whatsapp: formData.whatsapp,
+          ticketDistributor: formData.ticketDistributor,
           childCount: 1, // Logic remains 1 entry per invite
           genderSelection: child.gender,
           department: formData.department,
@@ -341,6 +348,24 @@ const RegistrationForm: React.FC = () => {
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50"
             />
           </div>
+
+          {config.ticketDistributors && config.ticketDistributors.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">¿Quién le entregó los tickets?</label>
+              <select
+                name="ticketDistributor"
+                value={formData.ticketDistributor}
+                onChange={handleChange}
+                disabled={isSubmitting}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:bg-slate-50"
+              >
+                <option value="">-- Seleccione un distribuidor --</option>
+                {config.ticketDistributors.map((dist, idx) => (
+                  <option key={idx} value={dist}>{dist}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Children List */}
           <div className="border-t border-slate-100 pt-4">

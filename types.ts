@@ -10,6 +10,7 @@ export interface Registration {
   district: string;
   addressDetails: string;
   childAge?: number;
+  ticketDistributor: string; // New field
   timestamp: string;
 }
 
@@ -24,6 +25,7 @@ export interface AppConfig {
   eventDate: string;
   maxRegistrations: number;
   isRegistrationOpen: boolean;
+  ticketDistributors: string[]; // List of available distributors
 
   // Hero
   heroTitle: string;
@@ -65,6 +67,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   eventDate: "23 de Diciembre",
   maxRegistrations: 1000,
   isRegistrationOpen: true,
+  ticketDistributors: ["General"], // Default value
   heroTitle: "Compartiendo Sonrisas",
   heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",
   heroBackgroundImage: "/hero-christmas.png",

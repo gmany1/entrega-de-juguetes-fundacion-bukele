@@ -1,5 +1,5 @@
 import { db } from './firebaseConfig';
-import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { Registration, StorageResult } from '../types';
 
 const COLLECTION_NAME = 'registrations';
@@ -67,5 +67,43 @@ export const saveRegistration = async (data: Omit<Registration, 'id' | 'timestam
   } catch (error) {
     console.error("Error saving registration", error);
     return { success: false, message: "Hubo un error al guardar tu registro. Intenta de nuevo." };
+  }
+};
+
+export const deleteRegistration = async (id: string): Promise<StorageResult> => {
+  try {
+    await deleteDoc(doc(db, COLLECTION_NAME, id));
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting registration", error);
+    return { success: false, message: "Error al eliminar el registro." };
+  }
+};
+
+export const clearAllRegistrations = async (): Promise<StorageResult> => {
+  try {
+    const q = query(collection(db, COLLECTION_NAME));
+    const querySnapshot = await getDocs(q);
+
+    // Firestore allows batches of up to 500 operations
+    const batchSize = 500;
+    const chunks = [];
+
+    for (let i = 0; i < querySnapshot.docs.length; i += batchSize) {
+      chunks.push(querySnapshot.docs.slice(i, i + batchSize));
+    }
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error clearing database", error);
+    return { success: false, message: "Error al reiniciar la base de datos." };
   }
 };

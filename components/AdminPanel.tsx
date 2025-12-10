@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
-import { getRegistrations } from '../services/storageService';
+import { getRegistrations, deleteRegistration, clearAllRegistrations } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
 import { AppConfig, DEPARTMENTS } from '../types';
 
@@ -238,6 +238,34 @@ const AdminPanel: React.FC = () => {
         }
     };
 
+    const handleDelete = async (id: string, name: string) => {
+        if (confirm(`¿Estás seguro de que quieres eliminar el registro de "${name}"? Esta acción no se puede deshacer.`)) {
+            const result = await deleteRegistration(id);
+            if (result.success) {
+                // Refresh list
+                const updatedRegs = await getRegistrations();
+                setRegistrations(updatedRegs);
+                setRegistrationCount(updatedRegs.length);
+            } else {
+                alert(result.message);
+            }
+        }
+    };
+
+    const handleResetDatabase = async () => {
+        const confirmation = prompt("⚠️ ZONA DE PELIGRO ⚠️\n\nEstás a punto de ELIMINAR TODOS LOS REGISTROS.\nEsta acción es irreversible.\n\nPara confirmar, escribe la palabra 'BORRAR' en mayúsculas:");
+        if (confirmation === 'BORRAR') {
+            const result = await clearAllRegistrations();
+            if (result.success) {
+                setRegistrations([]);
+                setRegistrationCount(0);
+                alert("Base de datos borrada correctamente.");
+            } else {
+                alert(result.message);
+            }
+        }
+    };
+
     if (!isOpen) {
         return (
             <button
@@ -406,6 +434,61 @@ const AdminPanel: React.FC = () => {
                                                 onChange={(e) => handleInputChange('eventDate', e.target.value)}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                             />
+                                        </div>
+
+                                        <hr className="border-slate-100" />
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">Distribuidores de Tickets</label>
+                                            <div className="flex flex-wrap gap-2 mb-2">
+                                                {(config.ticketDistributors || []).map((dist, idx) => (
+                                                    <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm">
+                                                        {dist}
+                                                        <button
+                                                            onClick={() => {
+                                                                const newDistributors = config.ticketDistributors.filter((_, i) => i !== idx);
+                                                                handleInputChange('ticketDistributors', newDistributors);
+                                                            }}
+                                                            className="hover:text-blue-900"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    id="newDistributor"
+                                                    placeholder="Nombre del distribuidor"
+                                                    className="flex-grow px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            const val = (e.target as HTMLInputElement).value.trim();
+                                                            if (val) {
+                                                                handleInputChange('ticketDistributors', [...(config.ticketDistributors || []), val]);
+                                                                (e.target as HTMLInputElement).value = '';
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const input = document.getElementById('newDistributor') as HTMLInputElement;
+                                                        const val = input.value.trim();
+                                                        if (val) {
+                                                            handleInputChange('ticketDistributors', [...(config.ticketDistributors || []), val]);
+                                                            input.value = '';
+                                                        }
+                                                    }}
+                                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                                                >
+                                                    Agregar
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1">Estos nombres aparecerán en la lista desplegable del formulario de registro.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -769,6 +852,7 @@ const AdminPanel: React.FC = () => {
                                                                 <th className="px-6 py-3">Teléfono</th>
                                                                 <th className="px-6 py-3">Ubicación</th>
                                                                 <th className="px-6 py-3">Niños</th>
+                                                                <th className="px-6 py-3"></th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
@@ -784,6 +868,15 @@ const AdminPanel: React.FC = () => {
                                                                             }`}>
                                                                             {reg.childCount} {reg.genderSelection}
                                                                         </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <button
+                                                                            onClick={() => handleDelete(reg.id, reg.fullName)}
+                                                                            className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                                                                            title="Eliminar Registro"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -823,6 +916,27 @@ const AdminPanel: React.FC = () => {
                                                 >
                                                     <Download className="w-4 h-4" /> Exportar Excel
                                                 </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
+                                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                                </div>
+                                                <div className="flex-grow">
+                                                    <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
+                                                    <p className="text-sm text-red-700 mb-4">
+                                                        Las siguientes acciones son destructivas y no se pueden deshacer.
+                                                    </p>
+                                                    <button
+                                                        onClick={handleResetDatabase}
+                                                        className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        Eliminar Toda la Base de Datos
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

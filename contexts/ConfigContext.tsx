@@ -9,7 +9,7 @@ interface ConfigContextType {
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
-const CONFIG_STORAGE_KEY = 'juguetes_app_config_v2';
+const CONFIG_STORAGE_KEY = 'juguetes_app_config_v3';
 
 export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);

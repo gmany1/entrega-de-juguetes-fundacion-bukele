@@ -501,7 +501,9 @@ const AdminPanel: React.FC = () => {
                                                         const demoMsg = config.whatsappTemplate
                                                             .replace('{name}', 'Juan Pérez')
                                                             .replace('{count}', '2')
-                                                            .replace('{invites}', 'NI0001, NI0002');
+                                                            .replace('{invites}', 'NI0001, NI0002')
+                                                            .replace('{phone}', config.vCardPhone)
+                                                            .replace('{contactName}', config.vCardName);
                                                         window.open(`https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
                                                     }}
                                                     className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
@@ -509,7 +511,7 @@ const AdminPanel: React.FC = () => {
                                                     <MessageSquare size={12} /> Probar Demo
                                                 </button>
                                             </div>
-                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
+                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}, {phone}, {contactName}'}</p>
                                         </div>
                                     </div>
 

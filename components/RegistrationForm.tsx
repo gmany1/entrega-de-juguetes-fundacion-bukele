@@ -183,9 +183,18 @@ const RegistrationForm: React.FC = () => {
       // Open WhatsApp for the first child (or generic)
       // Using the logic: we just need one contact point.
       const firstChild = children[0];
-      const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(
-        `*Hola, soy ${formData.fullName}.*\nConfirmo mi asistencia al evento *“Compartiendo Sonrisas”*.\nHe registrado *${children.length} invitaciones*:\n• ${children.map(c => c.inviteNumber).join(', ')}\n\n👉 *Solicito que me envíen los detalles de lugar y hora por este mismo medio.*\n\n📲 Guardaré este número en mis contactos para futuras comunicaciones.\n\n🙏 *¡Que Dios me los bendiga!*`
-      )}`;
+      const message = config.whatsappTemplate
+        .replace('{name}', formData.fullName)
+        .replace('{count}', children.length.toString())
+        .replace('{invites}', children.map(c => c.inviteNumber).join(', '))
+        // Contact variables
+        .replace('{phone}', config.vCardPhone)
+        .replace('{contactName}', config.vCardName)
+        // Fallback for old templates
+        .replace('{gender}', children.length > 1 ? 'niños' : 'niño/a')
+        .replace('{date}', config.eventDate);
+
+      const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(message)}`;
       window.open(link, '_blank');
 
     } catch (err: any) {

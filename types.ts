@@ -64,11 +64,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   eventDate: "23 de Diciembre",
   maxRegistrations: 1000,
   isRegistrationOpen: true,
-  heroTitle: "Llevando Sonrisas a El Salvador",
-  heroSubtitle: "Gran Entrega de Juguetes 2025 - Fundación Bukele",
-  heroBackgroundImage: "", // Empty means use default gradient
+  heroTitle: "Compartiendo Sonrisas",
+  heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",
+  heroBackgroundImage: "/hero-christmas.png",
   infoTargetTitle: "¿Para quién es?",
-  infoTargetDescription: "Exclusivo para niños y niñas salvadoreños de 0 a 10 años de edad. Queremos que los más pequeños disfruten la magia de la Navidad.",
+  infoTargetDescription: "Exclusivo para niños y niñas salvadoreños de 0 a 12 años de edad. Queremos que los más pequeños disfruten la magia de la Navidad.",
   infoRequirementsTitle: "Requisitos",
   infoRequirementsDescription: "Es indispensable contar con tu Número de Invitación válido y registrar un número de WhatsApp activo para recibir la confirmación.",
   infoLocationTitle: "Lugar y Hora",
@@ -80,7 +80,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   whatsappTemplate: "*Hola, soy {name}.*\nConfirmo mi asistencia al evento *“Compartiendo Sonrisas”*.\nHe registrado *{count} invitaciones*:\n• {invites}\n\n👉 *Solicito que me envíen los detalles de lugar y hora por este mismo medio.*\n\n📲 Guardaré este número en mis contactos para futuras comunicaciones.\n\n🙏 *¡Que Dios me los bendiga!*",
 
   // Default vCard
-  vCardName: "Fundación Bukele",
+  vCardName: "Medardo Linares",
   vCardOrg: "Fundación Armando Bukele",
   vCardPhone: "50379017014",
   vCardUrl: "https://www.fundacionbukele.org"

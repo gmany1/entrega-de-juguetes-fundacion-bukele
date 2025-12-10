@@ -1,5 +1,7 @@
+```
 import React, { useState, useEffect } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3 } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
 import { getRegistrations } from '../services/storageService';
@@ -15,14 +17,18 @@ const AdminPanel: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
 
-    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats'>('general');
     const { config, updateConfig, resetConfig } = useConfig();
 
     const [registrationCount, setRegistrationCount] = useState(0);
+    const [registrations, setRegistrations] = useState<any[]>([]);
 
     useEffect(() => {
         if (isAuthenticated) {
-            getRegistrations().then(regs => setRegistrationCount(regs.length));
+            getRegistrations().then(regs => {
+                setRegistrationCount(regs.length);
+                setRegistrations(regs);
+            });
         }
     }, [isAuthenticated, isOpen]);
     // AI Generation State
@@ -66,12 +72,12 @@ const AdminPanel: React.FC = () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Registros");
 
-        const fileName = `EntregaJuguetes_Registros_${new Date().toISOString().split('T')[0]}`;
+        const fileName = `EntregaJuguetes_Registros_${ new Date().toISOString().split('T')[0] } `;
 
         if (type === 'xlsx') {
-            XLSX.writeFile(workbook, `${fileName}.xlsx`);
+            XLSX.writeFile(workbook, `${ fileName }.xlsx`);
         } else {
-            XLSX.writeFile(workbook, `${fileName}.csv`);
+            XLSX.writeFile(workbook, `${ fileName }.csv`);
         }
     };
 
@@ -135,7 +141,7 @@ const AdminPanel: React.FC = () => {
             if (candidates && candidates[0].content && candidates[0].content.parts) {
                 for (const part of candidates[0].content.parts) {
                     if (part.inlineData) {
-                        const imgUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                        const imgUrl = `data:${ part.inlineData.mimeType }; base64, ${ part.inlineData.data } `;
                         setAiGeneratedImage(imgUrl);
                         foundImage = true;
                         break;
@@ -147,7 +153,7 @@ const AdminPanel: React.FC = () => {
                 // Check for text refusal or error
                 const textPart = candidates?.[0]?.content?.parts?.find(p => p.text);
                 if (textPart) {
-                    setAiError(`El modelo respondió solo con texto: ${textPart.text}`);
+                    setAiError(`El modelo respondió solo con texto: ${ textPart.text } `);
                 } else {
                     setAiError("No se pudo generar la imagen. Intenta con otro prompt.");
                 }
@@ -155,7 +161,7 @@ const AdminPanel: React.FC = () => {
 
         } catch (e: any) {
             console.error("AI Generation Error", e);
-            setAiError(`Error al generar imagen: ${e.message}`);
+            setAiError(`Error al generar imagen: ${ e.message } `);
         } finally {
             setAiLoading(false);
         }
@@ -409,10 +415,11 @@ const AdminPanel: React.FC = () => {
                                             <button
                                                 onClick={handleGenerateImage}
                                                 disabled={aiLoading || !aiPrompt}
-                                                className={`w-full py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-all ${aiLoading || !aiPrompt
-                                                    ? 'bg-slate-300 cursor-not-allowed'
-                                                    : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
-                                                    }`}
+                                                className={`w - full py - 3 rounded - lg text - white font - medium flex items - center justify - center gap - 2 transition - all ${
+    aiLoading || !aiPrompt
+    ? 'bg-slate-300 cursor-not-allowed'
+    : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
+} `}
                                             >
                                                 {aiLoading ? (
                                                     <>
@@ -506,14 +513,14 @@ const AdminPanel: React.FC = () => {
                                                             .replace('{contactName}', config.vCardName);
                                                         window.open(`https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
                                                     }}
-                                                    className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
-                                                >
-                                                    <MessageSquare size={12} /> Probar Demo
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
-                                        </div>
-                                    </div>
+className = "text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
+    >
+    <MessageSquare size={12} /> Probar Demo
+                                                </button >
+                                            </div >
+    <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
+                                        </div >
+                                    </div >
 
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                         <h4 className="font-semibold text-purple-700 mb-2">Tarjeta de Contacto (vCard)</h4>
@@ -539,44 +546,46 @@ const AdminPanel: React.FC = () => {
                                             <InputGroup label="Distrito" value={config.defaultDistrict} onChange={(v) => handleInputChange('defaultDistrict', v)} />
                                         </div>
                                     </div>
-                                </div>
+                                </div >
                             )}
 
-                            {activeTab === 'data' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
+{
+    activeTab === 'data' && (
+        <div className="space-y-6 animate-fade-in">
+            <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
 
-                                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
-                                        <div className="bg-blue-50 p-4 rounded-full">
-                                            <Database className="w-12 h-12 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
-                                            <div className="text-slate-500">Registros Totales</div>
-                                        </div>
+            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
+                <div className="bg-blue-50 p-4 rounded-full">
+                    <Database className="w-12 h-12 text-blue-600" />
+                </div>
+                <div>
+                    <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
+                    <div className="text-slate-500">Registros Totales</div>
+                </div>
 
-                                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                                            <button
-                                                onClick={() => handleExport('csv')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar CSV
-                                            </button>
-                                            <button
-                                                onClick={() => handleExport('xlsx')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar Excel
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                    </div>
-                )}
+                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                    <button
+                        onClick={() => handleExport('csv')}
+                        className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                    >
+                        <Download className="w-4 h-4" /> Exportar CSV
+                    </button>
+                    <button
+                        onClick={() => handleExport('xlsx')}
+                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                    >
+                        <Download className="w-4 h-4" /> Exportar Excel
+                    </button>
+                </div>
             </div>
+        </div>
+    )
+}
+
+                        </div >
+                    </div >
+                )}
+            </div >
         </div >
     );
 };

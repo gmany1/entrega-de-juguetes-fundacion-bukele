@@ -511,7 +511,7 @@ const AdminPanel: React.FC = () => {
                                                     <MessageSquare size={12} /> Probar Demo
                                                 </button>
                                             </div>
-                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}, {phone}, {contactName}'}</p>
+                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
                                         </div>
                                     </div>
 

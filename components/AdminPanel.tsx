@@ -713,126 +713,126 @@ const AdminPanel: React.FC = () => {
                                                         </ResponsiveContainer>
                                                     </div>
                                                 </div>
+
+
+                                                {/* Age Distribution (Bar) */}
+                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Contact className="w-4 h-4 text-orange-500" /> Edades (0-12)</h4>
+                                                    <div className="flex-grow">
+                                                        <ResponsiveContainer width="100%" height={250}>
+                                                            <BarChart data={stats?.ageData || []}>
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <XAxis dataKey="age" tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
+                                                                <YAxis allowDecimals={false} />
+                                                                <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                                                <Bar dataKey="count" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+
+                                                {/* Timeline (Area) */}
+                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
+                                                    <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
+                                                    <div className="flex-grow">
+                                                        <ResponsiveContainer width="100%" height={200}>
+                                                            <AreaChart data={stats?.timelineData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                                <defs>
+                                                                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                                                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                                                    </linearGradient>
+                                                                </defs>
+                                                                <XAxis dataKey="date" />
+                                                                <YAxis />
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <RechartsTooltip />
+                                                                <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorCount)" />
+                                                            </AreaChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+
                                             </div>
 
-                                            {/* Age Distribution (Bar) */}
-                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Contact className="w-4 h-4 text-orange-500" /> Edades (0-12)</h4>
-                                                <div className="flex-grow">
-                                                    <ResponsiveContainer width="100%" height={250}>
-                                                        <BarChart data={stats?.ageData || []}>
-                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                            <XAxis dataKey="age" tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
-                                                            <YAxis allowDecimals={false} />
-                                                            <RechartsTooltip cursor={{ fill: 'transparent' }} />
-                                                            <Bar dataKey="count" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
+                                            {/* Detailed List (Collapsible or Scrollable) */}
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-grow overflow-hidden flex flex-col">
+                                                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                                                    <h4 className="font-semibold text-slate-800">Últimos Registros</h4>
+                                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Top 50 Recientes</span>
+                                                </div>
+                                                <div className="overflow-x-auto flex-grow">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
+                                                            <tr>
+                                                                <th className="px-6 py-3">Nombre</th>
+                                                                <th className="px-6 py-3">Teléfono</th>
+                                                                <th className="px-6 py-3">Ubicación</th>
+                                                                <th className="px-6 py-3">Niños</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {registrations.slice(0, 50).map((reg) => (
+                                                                <tr key={reg.id} className="hover:bg-slate-50">
+                                                                    <td className="px-6 py-4 font-medium text-slate-900">{reg.fullName}</td>
+                                                                    <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
+                                                                    <td className="px-6 py-4 text-slate-600">{reg.municipality}, {reg.district || '-'}</td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                'bg-purple-100 text-purple-700'
+                                                                            }`}>
+                                                                            {reg.childCount} {reg.genderSelection}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
                                             </div>
-
-                                            {/* Timeline (Area) */}
-                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
-                                                <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
-                                                <div className="flex-grow">
-                                                    <ResponsiveContainer width="100%" height={200}>
-                                                        <AreaChart data={stats?.timelineData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                            <defs>
-                                                                <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                                                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                                                </linearGradient>
-                                                            </defs>
-                                                            <XAxis dataKey="date" />
-                                                            <YAxis />
-                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                            <RechartsTooltip />
-                                                            <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorCount)" />
-                                                        </AreaChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </div>
-
-                                        </div>
-
-                                    {/* Detailed List (Collapsible or Scrollable) */}
-                                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-grow overflow-hidden flex flex-col">
-                                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                                            <h4 className="font-semibold text-slate-800">Últimos Registros</h4>
-                                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Top 50 Recientes</span>
-                                        </div>
-                                        <div className="overflow-x-auto flex-grow">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
-                                                    <tr>
-                                                        <th className="px-6 py-3">Nombre</th>
-                                                        <th className="px-6 py-3">Teléfono</th>
-                                                        <th className="px-6 py-3">Ubicación</th>
-                                                        <th className="px-6 py-3">Niños</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {registrations.slice(0, 50).map((reg) => (
-                                                        <tr key={reg.id} className="hover:bg-slate-50">
-                                                            <td className="px-6 py-4 font-medium text-slate-900">{reg.fullName}</td>
-                                                            <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                            <td className="px-6 py-4 text-slate-600">{reg.municipality}, {reg.district || '-'}</td>
-                                                            <td className="px-6 py-4">
-                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                    reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                        'bg-purple-100 text-purple-700'
-                                                                    }`}>
-                                                                    {reg.childCount} {reg.genderSelection}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                            )}
-
-                        {
-                            activeTab === 'data' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
-
-                                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
-                                        <div className="bg-blue-50 p-4 rounded-full">
-                                            <Database className="w-12 h-12 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
-                                            <div className="text-slate-500">Registros Totales</div>
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                                            <button
-                                                onClick={() => handleExport('csv')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar CSV
-                                            </button>
-                                            <button
-                                                onClick={() => handleExport('xlsx')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar Excel
-                                            </button>
-                                        </div>
-                                    </div>
+                                        </>
+                                    )}
                                 </div>
-                            )
-                        }
+                            )}
 
-                    </div >
+                            {
+                                activeTab === 'data' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
+
+                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
+                                            <div className="bg-blue-50 p-4 rounded-full">
+                                                <Database className="w-12 h-12 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
+                                                <div className="text-slate-500">Registros Totales</div>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                                                <button
+                                                    onClick={() => handleExport('csv')}
+                                                    className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                                >
+                                                    <Download className="w-4 h-4" /> Exportar CSV
+                                                </button>
+                                                <button
+                                                    onClick={() => handleExport('xlsx')}
+                                                    className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                                >
+                                                    <Download className="w-4 h-4" /> Exportar Excel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            }
+
+                        </div >
                     </div >
                 )}
-        </div >
+            </div >
         </div >
     );
 };

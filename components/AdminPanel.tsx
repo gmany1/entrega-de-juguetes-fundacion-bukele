@@ -92,7 +92,18 @@ const AdminPanel: React.FC = () => {
             count: ageCount[i] || 0
         }));
 
-        return { genderData, municipalData, familySizeData, timelineData, ageData };
+
+        // 6. Distributor Stats
+        const distCount: Record<string, number> = {};
+        registrations.forEach(r => {
+            const dist = r.ticketDistributor || 'No Asignado';
+            distCount[dist] = (distCount[dist] || 0) + r.childCount;
+        });
+        const distributorData = Object.entries(distCount)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        return { genderData, municipalData, familySizeData, timelineData, ageData, distributorData };
     }, [registrations]);
 
     // Progress
@@ -238,6 +249,63 @@ const AdminPanel: React.FC = () => {
         }
     };
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    // Filtered Registrations
+    const filteredRegistrations = useMemo(() => {
+        if (!searchTerm) return registrations;
+        const lowerTerm = searchTerm.toLowerCase();
+        return registrations.filter(r =>
+            r.fullName.toLowerCase().includes(lowerTerm) ||
+            r.inviteNumber.toLowerCase().includes(lowerTerm) ||
+            r.whatsapp.includes(searchTerm)
+        );
+    }, [registrations, searchTerm]);
+
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            // Select all currently visible (filtered)
+            const allIds = new Set(filteredRegistrations.map(r => r.id));
+            setSelectedIds(allIds);
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelectRow = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) return;
+
+        if (confirm(`¿Estás seguro de que deseas eliminar ${selectedIds.size} registros seleccionados? Esta acción no se puede deshacer.`)) {
+            let successCount = 0;
+            // Iterate and delete (or use a batch service if available, currently loop for simplicity with existing service)
+            for (const id of Array.from(selectedIds)) {
+                const res = await deleteRegistration(id);
+                if (res.success) successCount++;
+            }
+
+            if (successCount > 0) {
+                const updatedRegs = await getRegistrations();
+                setRegistrations(updatedRegs);
+                setRegistrationCount(updatedRegs.length);
+                setSelectedIds(new Set());
+                alert(`Se eliminaron ${successCount} registros exitosamente.`);
+            } else {
+                alert("No se pudieron eliminar los registros.");
+            }
+        }
+    };
+
     const handleDelete = async (id: string, name: string) => {
         if (confirm(`¿Estás seguro de que quieres eliminar el registro de "${name}"? Esta acción no se puede deshacer.`)) {
             const result = await deleteRegistration(id);
@@ -246,6 +314,13 @@ const AdminPanel: React.FC = () => {
                 const updatedRegs = await getRegistrations();
                 setRegistrations(updatedRegs);
                 setRegistrationCount(updatedRegs.length);
+
+                // Remove from selection if it was selected
+                if (selectedIds.has(id)) {
+                    const newSet = new Set(selectedIds);
+                    newSet.delete(id);
+                    setSelectedIds(newSet);
+                }
             } else {
                 alert(result.message);
             }
@@ -259,6 +334,7 @@ const AdminPanel: React.FC = () => {
             if (result.success) {
                 setRegistrations([]);
                 setRegistrationCount(0);
+                setSelectedIds(new Set());
                 alert("Base de datos borrada correctamente.");
             } else {
                 alert(result.message);
@@ -736,6 +812,30 @@ const AdminPanel: React.FC = () => {
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
+                                                {/* Distributor Chart (Bar) */}
+                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col md:col-span-2 lg:col-span-3">
+                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                        <User className="w-4 h-4 text-blue-600" /> Tickets por Responsable
+                                                    </h4>
+                                                    <div className="flex-grow">
+                                                        <ResponsiveContainer width="100%" height={350}>
+                                                            <BarChart data={stats?.distributorData || []} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" interval={0} />
+                                                                <YAxis allowDecimals={false} />
+                                                                <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                                                <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40}>
+                                                                    {
+                                                                        (stats?.distributorData || []).map((entry, index) => (
+                                                                            <Cell key={`cell-${index}`} fill={['#2563eb', '#3b82f6', '#60a5fa'][index % 3] || '#3b82f6'} />
+                                                                        ))
+                                                                    }
+                                                                </Bar>
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+
                                                 {/* Gender Chart (Pie) */}
                                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
                                                     <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><PieChart className="w-4 h-4 text-purple-500" /> Género</h4>
@@ -840,27 +940,70 @@ const AdminPanel: React.FC = () => {
 
                                             {/* Detailed List (Collapsible or Scrollable) */}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-grow overflow-hidden flex flex-col">
-                                                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                                                    <h4 className="font-semibold text-slate-800">Últimos Registros</h4>
-                                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Top 50 Recientes</span>
+                                                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                    <div>
+                                                        <h4 className="font-semibold text-slate-800">Registros Recientes</h4>
+                                                        <span className="text-xs text-slate-500">Mostrando {filteredRegistrations.length} registros</span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar por nombre, invitación..."
+                                                            value={searchTerm}
+                                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64"
+                                                        />
+                                                        {selectedIds.size > 0 && (
+                                                            <button
+                                                                onClick={handleBulkDelete}
+                                                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                                Borrar ({selectedIds.size})
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
+
                                                 <div className="overflow-x-auto flex-grow">
                                                     <table className="w-full text-sm text-left">
                                                         <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
                                                             <tr>
+                                                                <th className="px-6 py-3 w-4">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        onChange={handleSelectAll}
+                                                                        checked={filteredRegistrations.length > 0 && selectedIds.size === filteredRegistrations.length}
+                                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                    />
+                                                                </th>
                                                                 <th className="px-6 py-3">Nombre</th>
                                                                 <th className="px-6 py-3">Teléfono</th>
-                                                                <th className="px-6 py-3">Ubicación</th>
+                                                                <th className="px-6 py-3">Invitación</th>
                                                                 <th className="px-6 py-3">Niños</th>
                                                                 <th className="px-6 py-3"></th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {registrations.slice(0, 50).map((reg) => (
-                                                                <tr key={reg.id} className="hover:bg-slate-50">
-                                                                    <td className="px-6 py-4 font-medium text-slate-900">{reg.fullName}</td>
+                                                            {filteredRegistrations.slice(0, 50).map((reg) => (
+                                                                <tr key={reg.id} className={`hover:bg-slate-50 ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
+                                                                    <td className="px-6 py-4">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedIds.has(reg.id)}
+                                                                            onChange={() => handleSelectRow(reg.id)}
+                                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-6 py-4 font-medium text-slate-900">
+                                                                        {reg.fullName}
+                                                                        {reg.ticketDistributor && (
+                                                                            <div className="text-xs text-slate-400 font-normal mt-0.5">Por: {reg.ticketDistributor}</div>
+                                                                        )}
+                                                                    </td>
                                                                     <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                                    <td className="px-6 py-4 text-slate-600">{reg.municipality}, {reg.district || '-'}</td>
+                                                                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
                                                                     <td className="px-6 py-4">
                                                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
                                                                             reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
@@ -880,6 +1023,13 @@ const AdminPanel: React.FC = () => {
                                                                     </td>
                                                                 </tr>
                                                             ))}
+                                                            {filteredRegistrations.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                                                                        No se encontraron registros que coincidan con tu búsqueda.
+                                                                    </td>
+                                                                </tr>
+                                                            )}
                                                         </tbody>
                                                     </table>
                                                 </div>

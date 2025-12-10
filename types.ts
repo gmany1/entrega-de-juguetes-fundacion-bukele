@@ -67,7 +67,19 @@ export const DEFAULT_CONFIG: AppConfig = {
   eventDate: "23 de Diciembre",
   maxRegistrations: 1000,
   isRegistrationOpen: true,
-  ticketDistributors: ["General"], // Default value
+  ticketDistributors: [
+    "Adilton Hernandez",
+    "Ingrid Flores",
+    "Adriana Linares",
+    "Medardo Salinas",
+    "Selene Roman",
+    "Judith Aldana",
+    "Yancy Grismery Flores",
+    "Emerson Hernandez",
+    "Noe Alvarado",
+    "Ingrid Alvarado",
+    "Seño Domi"
+  ], // Default value
   heroTitle: "Compartiendo Sonrisas",
   heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",
   heroBackgroundImage: "/hero-christmas.png",

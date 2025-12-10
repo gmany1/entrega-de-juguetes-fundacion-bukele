@@ -9,6 +9,7 @@ export interface Registration {
   municipality: string;
   district: string;
   addressDetails: string;
+  childAge?: number;
   timestamp: string;
 }
 

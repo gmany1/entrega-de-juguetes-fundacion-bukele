@@ -30,7 +30,7 @@ const RegistrationForm: React.FC = () => {
   const [submittedData, setSubmittedData] = useState<{ name: string, count: number } | null>(null);
 
   // New state for children list
-  const [children, setChildren] = useState([{ id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño' }]);
+  const [children, setChildren] = useState([{ id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño', age: '' }]);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -67,7 +67,7 @@ const RegistrationForm: React.FC = () => {
     if (error) setError(null);
   };
 
-  const handleChildChange = (id: string, field: 'inviteNumber' | 'gender', value: string) => {
+  const handleChildChange = (id: string, field: 'inviteNumber' | 'gender' | 'age', value: string) => {
     setChildren(prev => prev.map(child => {
       if (child.id === id) {
         return {
@@ -81,7 +81,7 @@ const RegistrationForm: React.FC = () => {
   };
 
   const addChild = () => {
-    setChildren(prev => [...prev, { id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño' }]);
+    setChildren(prev => [...prev, { id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño', age: '' }]);
   };
 
   const removeChild = (id: string) => {
@@ -138,6 +138,21 @@ const RegistrationForm: React.FC = () => {
         return false;
       }
       usedInvites.add(child.inviteNumber.trim());
+
+      // Age validation
+      if (!child.age || child.age.trim() === '') {
+        setError(`Debes ingresar la edad del niño/a #${i + 1}.`);
+        return false;
+      }
+      const ageNum = parseInt(child.age, 10);
+      if (isNaN(ageNum) || ageNum < 0) {
+        setError(`La edad del niño/a #${i + 1} no es válida.`);
+        return false;
+      }
+      if (ageNum > 12) {
+        setError(`El niño/a #${i + 1} tiene ${ageNum} años. La edad máxima permitida es 12 años.`);
+        return false;
+      }
     }
 
     return true;
@@ -162,7 +177,9 @@ const RegistrationForm: React.FC = () => {
           department: formData.department,
           municipality: formData.municipality,
           district: formData.district,
-          addressDetails: formData.addressDetails
+
+          addressDetails: formData.addressDetails,
+          childAge: parseInt(child.age, 10)
         }, config.maxRegistrations);
 
         if (!result.success) {
@@ -371,18 +388,34 @@ const RegistrationForm: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {children.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeChild(child.id)}
-                      className="absolute -top-2 -right-2 bg-red-100 text-red-500 rounded-full p-1 hover:bg-red-200"
-                      title="Eliminar"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  )}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Edad (Años)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={child.age}
+                      onChange={(e) => handleChildChange(child.id, 'age', e.target.value)}
+                      placeholder="Ej. 8"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  {
+                    children.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeChild(child.id)}
+                        className="absolute -top-2 -right-2 bg-red-100 text-red-500 rounded-full p-1 hover:bg-red-200"
+                        title="Eliminar"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    )
+                  }
                 </div>
               ))}
             </div>
@@ -463,8 +496,8 @@ const RegistrationForm: React.FC = () => {
           </div>
 
         </form>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

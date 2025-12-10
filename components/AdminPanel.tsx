@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3 } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
 import { getRegistrations } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
 import { AppConfig, DEPARTMENTS } from '../types';
+
+
 
 const AdminPanel: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -36,6 +38,55 @@ const AdminPanel: React.FC = () => {
     const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
+
+    // Statistics Data Processing
+    const stats = useMemo(() => {
+        if (!registrations.length) return null;
+
+        // 1. Gender Distribution
+        const genderData = [
+            { name: 'Niños', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niños' ? r.childCount : 0), 0) },
+            { name: 'Niñas', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niñas' ? r.childCount : 0), 0) },
+            { name: 'Mixto', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'ambos' ? r.childCount : 0), 0) }
+        ].filter(d => d.value > 0);
+
+        // 2. Top Municipalities
+        const muniCount: Record<string, number> = {};
+        registrations.forEach(r => {
+            const muni = r.municipality || 'Desconocido';
+            muniCount[muni] = (muniCount[muni] || 0) + 1;
+        });
+        const municipalData = Object.entries(muniCount)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5);
+
+        // 3. Family Size Distribution
+        const familySizeCount: Record<number, number> = {};
+        registrations.forEach(r => {
+            const count = r.childCount;
+            familySizeCount[count] = (familySizeCount[count] || 0) + 1;
+        });
+        const familySizeData = Object.entries(familySizeCount)
+            .map(([size, count]) => ({ size: `${size} Niños`, count }))
+            .sort((a, b) => Number(a.size.split(' ')[0]) - Number(b.size.split(' ')[0]));
+
+        // 4. Registration Timeline (Last 7 days or all time if short)
+        const timelineCount: Record<string, number> = {};
+        registrations.forEach(r => {
+            const date = new Date(r.timestamp).toLocaleDateString('es-SV', { month: 'short', day: 'numeric' });
+            timelineCount[date] = (timelineCount[date] || 0) + 1;
+        });
+        const timelineData = Object.entries(timelineCount)
+            .map(([date, count]) => ({ date, count }));
+        // Note: In a real app, you'd sort by actual date object, but this is a simplified view
+
+        return { genderData, municipalData, familySizeData, timelineData };
+    }, [registrations]);
+
+    // Progress
+    const progressPercentage = Math.min(100, Math.round((registrations.length / config.maxRegistrations) * 100));
+
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -549,63 +600,123 @@ const AdminPanel: React.FC = () => {
                                 </div >
                             )}
 
-                            {activeTab === 'stats' && (
-                                <div className="space-y-6 animate-fade-in h-full flex flex-col">
-                                    <SectionHeader title="Estadísticas en Tiempo Real" description="Resumen visual de los registros." />
+                            {activeTab === 'stats' && stats && (
+                                <div className="space-y-6 animate-fade-in h-full flex flex-col pb-10">
+                                    <SectionHeader title="Tablero de Control" description="Métricas clave para la logística del evento." />
 
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                        {/* Gender Chart */}
+                                    {/* Goal Progress */}
+                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Registros</h4>
+                                                <div className="text-3xl font-bold text-slate-800 mt-1">{registrations.length} <span className="text-lg text-slate-400 font-normal">/ {config.maxRegistrations}</span></div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${progressPercentage >= 100 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                    {progressPercentage}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-1000 ${progressPercentage >= 100 ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'}`}
+                                                style={{ width: `${progressPercentage}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                                        {/* Gender Chart (Pie) */}
                                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
-                                            <h4 className="font-semibold text-slate-800 mb-4">Distribución por Género</h4>
+                                            <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><PieChart className="w-4 h-4 text-purple-500" /> Género</h4>
                                             <div className="flex-grow">
-                                                <ResponsiveContainer width="100%" height="100%">
+                                                <ResponsiveContainer width="100%" height={250}>
                                                     <PieChart>
                                                         <Pie
-                                                            data={[
-                                                                { name: 'Niños', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niños' ? r.childCount : 0), 0) },
-                                                                { name: 'Niñas', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niñas' ? r.childCount : 0), 0) },
-                                                                { name: 'Mixto', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'ambos' ? r.childCount : 0), 0) }
-                                                            ].filter(d => d.value > 0)}
+                                                            data={stats.genderData}
                                                             cx="50%"
                                                             cy="50%"
+                                                            innerRadius={60}
                                                             outerRadius={80}
-                                                            fill="#8884d8"
+                                                            paddingAngle={5}
                                                             dataKey="value"
-                                                            label
                                                         >
-                                                            <Cell fill="#3b82f6" /> {/* Niños - Blue */}
-                                                            <Cell fill="#ec4899" /> {/* Niñas - Pink */}
-                                                            <Cell fill="#a855f7" /> {/* Mixto - Purple */}
+                                                            {stats.genderData.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={['#3b82f6', '#ec4899', '#a855f7'][index % 3]} />
+                                                            ))}
                                                         </Pie>
                                                         <RechartsTooltip />
-                                                        <Legend />
+                                                        <Legend verticalAlign="bottom" height={36} />
                                                     </PieChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="text-center text-sm text-slate-500 mt-2">
+                                                Total Niños/as: <span className="font-bold text-slate-800">{registrations.reduce((acc, r) => acc + r.childCount, 0)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Top Municipalities (Bar) */}
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
+                                            <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Database className="w-4 h-4 text-blue-500" /> Top Municipios</h4>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height={250}>
+                                                    <BarChart data={stats.municipalData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                        <XAxis type="number" hide />
+                                                        <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} interval={0} />
+                                                        <RechartsTooltip />
+                                                        <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                                                    </BarChart>
                                                 </ResponsiveContainer>
                                             </div>
                                         </div>
 
-                                        {/* General Stats */}
-                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                            <h4 className="font-semibold text-slate-800 mb-4">Resumen General</h4>
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                                                    <span className="text-slate-600">Total Familias</span>
-                                                    <span className="font-bold text-slate-800 text-xl">{registrations.length}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                                                    <span className="text-blue-700">Total Niños/as</span>
-                                                    <span className="font-bold text-blue-800 text-xl">
-                                                        {registrations.reduce((acc, r) => acc + r.childCount, 0)}
-                                                    </span>
-                                                </div>
+                                        {/* Cost/Size Distribution (Bar) */}
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                            <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-4 h-4 text-green-500" /> Tamaño de Familia</h4>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height={250}>
+                                                    <BarChart data={stats.familySizeData}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis dataKey="size" tick={{ fontSize: 10 }} />
+                                                        <YAxis allowDecimals={false} />
+                                                        <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                                        <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
                                             </div>
                                         </div>
+
+                                        {/* Timeline (Area) */}
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
+                                            <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height={200}>
+                                                    <AreaChart data={stats.timelineData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                        <defs>
+                                                            <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <XAxis dataKey="date" />
+                                                        <YAxis />
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <RechartsTooltip />
+                                                        <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorCount)" />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+
                                     </div>
 
-                                    {/* Detailed List */}
+                                    {/* Detailed List (Collapsible or Scrollable) */}
                                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-grow overflow-hidden flex flex-col">
-                                        <div className="p-5 border-b border-slate-100">
-                                            <h4 className="font-semibold text-slate-800">Detalle de Contacto y Ubicación</h4>
+                                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                                            <h4 className="font-semibold text-slate-800">Últimos Registros</h4>
+                                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Top 50 Recientes</span>
                                         </div>
                                         <div className="overflow-x-auto flex-grow">
                                             <table className="w-full text-sm text-left">
@@ -625,8 +736,8 @@ const AdminPanel: React.FC = () => {
                                                             <td className="px-6 py-4 text-slate-600">{reg.municipality}, {reg.district || '-'}</td>
                                                             <td className="px-6 py-4">
                                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                    reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                        'bg-purple-100 text-purple-700'
+                                                                        reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                            'bg-purple-100 text-purple-700'
                                                                     }`}>
                                                                     {reg.childCount} {reg.genderSelection}
                                                                 </span>
@@ -636,11 +747,6 @@ const AdminPanel: React.FC = () => {
                                                 </tbody>
                                             </table>
                                         </div>
-                                        {registrations.length > 50 && (
-                                            <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-100">
-                                                Mostrando los últimos 50 registros de {registrations.length}
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             )}

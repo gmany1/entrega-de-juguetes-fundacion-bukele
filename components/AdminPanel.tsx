@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
@@ -18,6 +18,13 @@ const AdminPanel: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data'>('general');
     const { config, updateConfig, resetConfig } = useConfig();
 
+    const [registrationCount, setRegistrationCount] = useState(0);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            getRegistrations().then(regs => setRegistrationCount(regs.length));
+        }
+    }, [isAuthenticated, isOpen]);
     // AI Generation State
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiSourceImage, setAiSourceImage] = useState<string | null>(null);
@@ -35,8 +42,8 @@ const AdminPanel: React.FC = () => {
         }
     };
 
-    const handleExport = (type: 'xlsx' | 'csv') => {
-        const data = getRegistrations();
+    const handleExport = async (type: 'xlsx' | 'csv') => {
+        const data = await getRegistrations();
         if (data.length === 0) {
             alert("No hay registros para exportar.");
             return;
@@ -315,7 +322,7 @@ const AdminPanel: React.FC = () => {
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                             />
                                             <p className="text-xs text-slate-500 mt-1">
-                                                Actualmente hay {getRegistrations().length} registros. Si bajas el límite por debajo de este número, se cerrará el registro.
+                                                Actualmente hay {registrationCount} registros. Si bajas el límite por debajo de este número, se cerrará el registro.
                                             </p>
                                         </div>
 
@@ -403,8 +410,8 @@ const AdminPanel: React.FC = () => {
                                                 onClick={handleGenerateImage}
                                                 disabled={aiLoading || !aiPrompt}
                                                 className={`w-full py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-all ${aiLoading || !aiPrompt
-                                                        ? 'bg-slate-300 cursor-not-allowed'
-                                                        : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
+                                                    ? 'bg-slate-300 cursor-not-allowed'
+                                                    : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
                                                     }`}
                                             >
                                                 {aiLoading ? (
@@ -488,7 +495,22 @@ const AdminPanel: React.FC = () => {
                                                 rows={6}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                                             />
-                                            <p className="text-xs text-slate-500 mt-1">Variables disponibles: {'{name}, {count}, {gender}, {date}'}</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const demoMsg = config.whatsappTemplate
+                                                            .replace('{name}', 'Juan Pérez')
+                                                            .replace('{count}', '2')
+                                                            .replace('{gender}', 'niños')
+                                                            .replace('{date}', config.eventDate);
+                                                        window.open(`https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
+                                                    }}
+                                                    className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
+                                                >
+                                                    <MessageSquare size={12} /> Probar Demo
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {gender}, {date}'}</p>
                                         </div>
                                     </div>
 
@@ -496,9 +518,7 @@ const AdminPanel: React.FC = () => {
                                         <h4 className="font-semibold text-purple-700 mb-2">Tarjeta de Contacto (vCard)</h4>
                                         <p className="text-xs text-slate-500 mb-2">Información para que los padres guarden el contacto.</p>
                                         <InputGroup label="Nombre del Contacto" value={config.vCardName} onChange={(v) => handleInputChange('vCardName', v)} />
-                                        <InputGroup label="Organización" value={config.vCardOrg} onChange={(v) => handleInputChange('vCardOrg', v)} />
                                         <InputGroup label="Teléfono de Contacto" value={config.vCardPhone} onChange={(v) => handleInputChange('vCardPhone', v)} />
-                                        <InputGroup label="Sitio Web (URL)" value={config.vCardUrl} onChange={(v) => handleInputChange('vCardUrl', v)} />
                                     </div>
 
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -530,7 +550,7 @@ const AdminPanel: React.FC = () => {
                                             <Database className="w-12 h-12 text-blue-600" />
                                         </div>
                                         <div>
-                                            <div className="text-4xl font-bold text-slate-800">{getRegistrations().length}</div>
+                                            <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
                                             <div className="text-slate-500">Registros Totales</div>
                                         </div>
 
@@ -556,7 +576,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

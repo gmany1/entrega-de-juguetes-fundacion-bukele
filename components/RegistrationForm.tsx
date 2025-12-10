@@ -12,9 +12,7 @@ const RegistrationForm: React.FC = () => {
       'BEGIN:VCARD',
       'VERSION:3.0',
       `FN:${config.vCardName}`,
-      `ORG:${config.vCardOrg}`,
-      `TEL;TYPE=WORK,VOICE:${config.vCardPhone}`,
-      `URL:${config.vCardUrl}`,
+      `TEL;TYPE=CELL,VOICE:${config.vCardPhone}`,
       'END:VCARD'
     ].join('\n');
 

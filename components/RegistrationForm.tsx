@@ -1,10 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle2, AlertCircle, MapPin, Lock, Loader2 } from 'lucide-react';
+import { Send, CheckCircle2, AlertCircle, MapPin, Lock, Loader2, Contact } from 'lucide-react';
 import { getRemainingSlots, saveRegistration } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
 
 const RegistrationForm: React.FC = () => {
   const { config } = useConfig();
+
+  const downloadVCard = () => {
+    // Construct vCard 3.0 string
+    const vCardData = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${config.vCardName}`,
+      `ORG:${config.vCardOrg}`,
+      `TEL;TYPE=WORK,VOICE:${config.vCardPhone}`,
+      `URL:${config.vCardUrl}`,
+      'END:VCARD'
+    ].join('\n');
+
+    const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'contacto_fundacion.vcf');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const [remainingSlots, setRemainingSlots] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedData, setSubmittedData] = useState<{ name: string, count: number } | null>(null);
@@ -164,7 +186,7 @@ const RegistrationForm: React.FC = () => {
       // Using the logic: we just need one contact point.
       const firstChild = children[0];
       const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(
-        `Hola, soy ${formData.fullName}. He registrado ${children.length} niño(s) para la entrega de juguetes. Invitación(es): ${children.map(c => c.inviteNumber).join(', ')}.`
+        `Hola, soy ${formData.fullName}. Confirmo mi asistencia al evento "Compartiendo Sonrisas". He registrado ${children.length} invitaciones: ${children.map(c => c.inviteNumber).join(', ')}.`
       )}`;
       window.open(link, '_blank');
 
@@ -175,6 +197,38 @@ const RegistrationForm: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (submittedData) {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-lg animate-fade-in-up">
+        <div className="flex justify-center mb-4">
+          <CheckCircle2 className="w-16 h-16 text-green-600" />
+        </div>
+        <h2 className="text-3xl font-bold text-green-800 mb-4">¡Registro Exitoso!</h2>
+        <p className="text-green-700 text-lg mb-6">
+          Gracias <strong>{submittedData.name}</strong>. Hemos procesado el registro de {submittedData.count} niño(s).
+          Se ha abierto una ventana de WhatsApp para confirmar tu asistencia.
+        </p>
+
+        <div className="flex flex-col gap-3 justify-center items-center mb-6">
+          <button
+            onClick={downloadVCard}
+            className="flex items-center gap-2 bg-white border border-green-300 text-green-700 hover:bg-green-100 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+          >
+            <Contact className="w-4 h-4" />
+            Guardar Contacto de la Fundación
+          </button>
+        </div>
+
+        <button
+          onClick={() => window.location.reload()}
+          className="text-green-800 underline hover:text-green-900"
+        >
+          Volver al inicio
+        </button>
+      </div>
+    );
+  }
 
   const isClosed = !config.isRegistrationOpen || remainingSlots <= 0;
 

@@ -181,12 +181,12 @@ const AdminPanel: React.FC = () => {
     }
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-0 md:p-4">
+            <div className="bg-white w-full h-full md:max-w-6xl md:h-[90vh] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all">
 
                 {/* Header */}
-                <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center flex-shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">
+                <div className="bg-slate-800 text-white px-4 md:px-6 py-4 flex justify-between items-center flex-shrink-0">
+                    <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
                         <Settings className="w-5 h-5" />
                         Panel Administrativo
                     </h2>
@@ -251,7 +251,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                 ) : (
                     /* Authenticated Dashboard */
-                    <div className="flex flex-grow overflow-hidden">
+                    <div className="flex flex-col md:flex-row flex-grow overflow-hidden">
 
                         {/* Sidebar Tabs */}
                         <div className="w-64 bg-slate-100 border-r border-slate-200 overflow-y-auto hidden md:block">

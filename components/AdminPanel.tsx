@@ -774,7 +774,7 @@ const AdminPanel: React.FC = () => {
                             )}
 
                             {activeTab === 'stats' && (
-                                <div className="space-y-6 animate-fade-in h-full flex flex-col pb-10">
+                                <div className="space-y-6 animate-fade-in pb-10">
                                     <SectionHeader title="Tablero de Control" description="Métricas clave para la logística del evento." />
 
                                     {registrations.length === 0 ? (
@@ -864,23 +864,6 @@ const AdminPanel: React.FC = () => {
                                                         Total Niños/as: <span className="font-bold text-slate-800">{registrations.reduce((acc, r) => acc + r.childCount, 0)}</span>
                                                     </div>
                                                 </div>
-
-                                                {/* Top Municipalities (Bar) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Database className="w-4 h-4 text-blue-500" /> Top Municipios</h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={250}>
-                                                            <BarChart data={stats?.municipalData || []} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                                <XAxis type="number" hide />
-                                                                <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} interval={0} />
-                                                                <RechartsTooltip />
-                                                                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
-                                                            </BarChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                </div>
-
                                                 {/* Cost/Size Distribution (Bar) */}
                                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
                                                     <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-4 h-4 text-green-500" /> Tamaño de Familia</h4>
@@ -939,7 +922,7 @@ const AdminPanel: React.FC = () => {
                                             </div>
 
                                             {/* Detailed List (Collapsible or Scrollable) */}
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-grow overflow-hidden flex flex-col">
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm w-full">
                                                 <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                                                     <div>
                                                         <h4 className="font-semibold text-slate-800">Registros Recientes</h4>

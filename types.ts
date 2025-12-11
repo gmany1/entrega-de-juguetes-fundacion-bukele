@@ -78,7 +78,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     "Emerson Hernandez",
     "Noe Alvarado",
     "Ingrid Alvarado",
-    "Seño Domi"
+    "Seño Domi",
+    "Maritza Chevez",
+    "Veronica Flores",
+    "Roxana Miron",
+    "Vladimir Mendoza",
+    "Miguel Lazo"
   ], // Default value
   heroTitle: "Compartiendo Sonrisas",
   heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",

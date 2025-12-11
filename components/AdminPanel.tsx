@@ -21,23 +21,24 @@ const AdminPanel: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats'>('general');
     const { config, updateConfig, resetConfig } = useConfig();
 
-    const [registrationCount, setRegistrationCount] = useState(0);
-    const [registrations, setRegistrations] = useState<any[]>([]);
+    // Local State for Editing (Draft Mode)
+    const [localConfig, setLocalConfig] = useState<AppConfig>(config);
+    const [hasChanges, setHasChanges] = useState(false);
 
     useEffect(() => {
-        if (isAuthenticated) {
-            getRegistrations().then(regs => {
-                setRegistrationCount(regs.length);
-                setRegistrations(regs);
-            });
+        if (isOpen) {
+            setLocalConfig(config);
+            setHasChanges(false);
         }
-    }, [isAuthenticated, isOpen]);
-    // AI Generation State
-    const [aiPrompt, setAiPrompt] = useState('');
+    }, [isOpen, config]);
+
+    const [registrationCount, setRegistrationCount] = useState(0);
+    const [registrations, setRegistrations] = useState<any[]>([]);
     const [aiSourceImage, setAiSourceImage] = useState<string | null>(null);
     const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
+    const [aiPrompt, setAiPrompt] = useState('');
 
     // Statistics Data Processing
     const stats = useMemo(() => {
@@ -107,7 +108,7 @@ const AdminPanel: React.FC = () => {
     }, [registrations]);
 
     // Progress
-    const progressPercentage = Math.min(100, Math.round((registrations.length / config.maxRegistrations) * 100));
+    const progressPercentage = Math.min(100, Math.round((registrations.length / localConfig.maxRegistrations) * 100));
 
     // ... (keep handleLogin and others) ...
 
@@ -157,7 +158,14 @@ const AdminPanel: React.FC = () => {
     };
 
     const handleInputChange = (field: keyof AppConfig, value: any) => {
-        updateConfig({ [field]: value });
+        setLocalConfig(prev => ({ ...prev, [field]: value }));
+        setHasChanges(true);
+    };
+
+    const handleSave = () => {
+        updateConfig(localConfig);
+        setHasChanges(false);
+        alert("¡Cambios guardados exitosamente!");
     };
 
     // AI Image Helpers
@@ -245,7 +253,7 @@ const AdminPanel: React.FC = () => {
     const applyGeneratedImage = () => {
         if (aiGeneratedImage) {
             handleInputChange('heroBackgroundImage', aiGeneratedImage);
-            alert("Imagen aplicada al fondo exitosamente.");
+            alert("Imagen aplicada. No olvides GUARDAR los cambios.");
         }
     };
 
@@ -322,7 +330,7 @@ const AdminPanel: React.FC = () => {
                     setSelectedIds(newSet);
                 }
             } else {
-                alert(result.message);
+                alert(result.message || "Error al eliminar el registro.");
             }
         }
     };
@@ -337,7 +345,7 @@ const AdminPanel: React.FC = () => {
                 setSelectedIds(new Set());
                 alert("Base de datos borrada correctamente.");
             } else {
-                alert(result.message);
+                alert(result.message || "Error al borrar la base de datos.");
             }
         }
     };
@@ -359,14 +367,33 @@ const AdminPanel: React.FC = () => {
             <div className="bg-white w-full h-full md:max-w-6xl md:h-[90vh] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all">
 
                 {/* Header */}
-                <div className="bg-slate-800 text-white px-4 md:px-6 py-4 flex justify-between items-center flex-shrink-0">
-                    <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-                        <Settings className="w-5 h-5" />
-                        Panel Administrativo
-                    </h2>
-                    <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                        <X className="w-6 h-6" />
-                    </button>
+                <div className="bg-slate-800 text-white px-4 md:px-6 py-4 flex justify-between items-center flex-shrink-0 z-50">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
+                            <Settings className="w-5 h-5" />
+                            <span className="hidden sm:inline">Panel Administrativo</span>
+                            <span className="inline sm:hidden">Admin</span>
+                        </h2>
+                        {hasChanges && (
+                            <span className="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                                SIN GUARDAR
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {hasChanges && (
+                            <button
+                                onClick={handleSave}
+                                className="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all animate-bounce-short"
+                            >
+                                Guardar
+                            </button>
+                        )}
+                        <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors ml-2">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content Body */}
@@ -454,13 +481,13 @@ const AdminPanel: React.FC = () => {
                         </div>
 
                         {/* Mobile Tabs (Horizontal) */}
-                        <div className="md:hidden w-full overflow-x-auto flex border-b border-slate-200 bg-slate-50 flex-shrink-0">
-                            <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} />
-                            <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} />
-                            <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} />
-                            <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} />
-                            <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} />
-                            <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} />
+                        <div className="md:hidden w-full overflow-x-auto flex border-b border-slate-200 bg-slate-50 flex-shrink-0 scrollbar-hide">
+                            <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
+                            <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Hero" />
+                            <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Info" />
+                            <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Contacto" />
+                            <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
+                            <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
                         </div>
 
                         {/* Content Area */}
@@ -479,7 +506,7 @@ const AdminPanel: React.FC = () => {
                                             <label className="relative inline-flex items-center cursor-pointer">
                                                 <input
                                                     type="checkbox"
-                                                    checked={config.isRegistrationOpen}
+                                                    checked={localConfig.isRegistrationOpen}
                                                     onChange={(e) => handleInputChange('isRegistrationOpen', e.target.checked)}
                                                     className="sr-only peer"
                                                 />
@@ -493,7 +520,7 @@ const AdminPanel: React.FC = () => {
                                             <label className="block text-sm font-medium text-slate-700 mb-1">Límite Máximo de Registros</label>
                                             <input
                                                 type="number"
-                                                value={config.maxRegistrations}
+                                                value={localConfig.maxRegistrations}
                                                 onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                             />
@@ -506,7 +533,7 @@ const AdminPanel: React.FC = () => {
                                             <label className="block text-sm font-medium text-slate-700 mb-1">Fecha del Evento (Texto)</label>
                                             <input
                                                 type="text"
-                                                value={config.eventDate}
+                                                value={localConfig.eventDate}
                                                 onChange={(e) => handleInputChange('eventDate', e.target.value)}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                             />
@@ -517,12 +544,12 @@ const AdminPanel: React.FC = () => {
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-2">Distribuidores de Tickets</label>
                                             <div className="flex flex-wrap gap-2 mb-2">
-                                                {(config.ticketDistributors || []).map((dist, idx) => (
+                                                {(localConfig.ticketDistributors || []).map((dist, idx) => (
                                                     <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm">
                                                         {dist}
                                                         <button
                                                             onClick={() => {
-                                                                const newDistributors = config.ticketDistributors.filter((_, i) => i !== idx);
+                                                                const newDistributors = localConfig.ticketDistributors.filter((_, i) => i !== idx);
                                                                 handleInputChange('ticketDistributors', newDistributors);
                                                             }}
                                                             className="hover:text-blue-900"
@@ -543,7 +570,7 @@ const AdminPanel: React.FC = () => {
                                                             e.preventDefault();
                                                             const val = (e.target as HTMLInputElement).value.trim();
                                                             if (val) {
-                                                                handleInputChange('ticketDistributors', [...(config.ticketDistributors || []), val]);
+                                                                handleInputChange('ticketDistributors', [...(localConfig.ticketDistributors || []), val]);
                                                                 (e.target as HTMLInputElement).value = '';
                                                             }
                                                         }
@@ -555,7 +582,7 @@ const AdminPanel: React.FC = () => {
                                                         const input = document.getElementById('newDistributor') as HTMLInputElement;
                                                         const val = input.value.trim();
                                                         if (val) {
-                                                            handleInputChange('ticketDistributors', [...(config.ticketDistributors || []), val]);
+                                                            handleInputChange('ticketDistributors', [...(localConfig.ticketDistributors || []), val]);
                                                             input.value = '';
                                                         }
                                                     }}
@@ -575,14 +602,14 @@ const AdminPanel: React.FC = () => {
                                     <SectionHeader title="Sección Hero & Estilos" description="Personaliza la primera impresión de la página." />
 
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <InputGroup label="Título Principal" value={config.heroTitle} onChange={(v) => handleInputChange('heroTitle', v)} />
-                                        <InputGroup label="Subtítulo" value={config.heroSubtitle} onChange={(v) => handleInputChange('heroSubtitle', v)} />
+                                        <InputGroup label="Título Principal" value={localConfig.heroTitle} onChange={(v) => handleInputChange('heroTitle', v)} />
+                                        <InputGroup label="Subtítulo" value={localConfig.heroSubtitle} onChange={(v) => handleInputChange('heroSubtitle', v)} />
 
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-1">URL Imagen de Fondo (Manual)</label>
                                             <input
                                                 type="text"
-                                                value={config.heroBackgroundImage}
+                                                value={localConfig.heroBackgroundImage}
                                                 onChange={(e) => handleInputChange('heroBackgroundImage', e.target.value)}
                                                 placeholder="https://ejemplo.com/imagen.jpg"
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
@@ -691,20 +718,20 @@ const AdminPanel: React.FC = () => {
                                     <div className="grid gap-6">
                                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                             <h4 className="font-semibold text-blue-800">Tarjeta 1: ¿Para quién es?</h4>
-                                            <InputGroup label="Título" value={config.infoTargetTitle} onChange={(v) => handleInputChange('infoTargetTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={config.infoTargetDescription} onChange={(v) => handleInputChange('infoTargetDescription', v)} />
+                                            <InputGroup label="Título" value={localConfig.infoTargetTitle} onChange={(v) => handleInputChange('infoTargetTitle', v)} />
+                                            <TextAreaGroup label="Descripción" value={localConfig.infoTargetDescription} onChange={(v) => handleInputChange('infoTargetDescription', v)} />
                                         </div>
 
                                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                             <h4 className="font-semibold text-blue-800">Tarjeta 2: Requisitos</h4>
-                                            <InputGroup label="Título" value={config.infoRequirementsTitle} onChange={(v) => handleInputChange('infoRequirementsTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={config.infoRequirementsDescription} onChange={(v) => handleInputChange('infoRequirementsDescription', v)} />
+                                            <InputGroup label="Título" value={localConfig.infoRequirementsTitle} onChange={(v) => handleInputChange('infoRequirementsTitle', v)} />
+                                            <TextAreaGroup label="Descripción" value={localConfig.infoRequirementsDescription} onChange={(v) => handleInputChange('infoRequirementsDescription', v)} />
                                         </div>
 
                                         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                             <h4 className="font-semibold text-blue-800">Tarjeta 3: Ubicación</h4>
-                                            <InputGroup label="Título" value={config.infoLocationTitle} onChange={(v) => handleInputChange('infoLocationTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={config.infoLocationDescription} onChange={(v) => handleInputChange('infoLocationDescription', v)} />
+                                            <InputGroup label="Título" value={localConfig.infoLocationTitle} onChange={(v) => handleInputChange('infoLocationTitle', v)} />
+                                            <TextAreaGroup label="Descripción" value={localConfig.infoLocationDescription} onChange={(v) => handleInputChange('infoLocationDescription', v)} />
                                         </div>
                                     </div>
                                 </div>
@@ -716,12 +743,12 @@ const AdminPanel: React.FC = () => {
 
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                         <h4 className="font-semibold text-green-700 mb-2">Configuración WhatsApp</h4>
-                                        <InputGroup label="Número de Organización" value={config.orgPhoneNumber} onChange={(v) => handleInputChange('orgPhoneNumber', v)} />
+                                        <InputGroup label="Número de Organización" value={localConfig.orgPhoneNumber} onChange={(v) => handleInputChange('orgPhoneNumber', v)} />
 
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-1">Plantilla del Mensaje</label>
                                             <textarea
-                                                value={config.whatsappTemplate}
+                                                value={localConfig.whatsappTemplate}
                                                 onChange={(e) => handleInputChange('whatsappTemplate', e.target.value)}
                                                 rows={6}
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
@@ -729,13 +756,13 @@ const AdminPanel: React.FC = () => {
                                             <div className="flex gap-2 mt-2">
                                                 <button
                                                     onClick={() => {
-                                                        const demoMsg = config.whatsappTemplate
+                                                        const demoMsg = localConfig.whatsappTemplate
                                                             .replace('{name}', 'Juan Pérez')
                                                             .replace('{count}', '2')
                                                             .replace('{invites}', 'NI0001, NI0002')
-                                                            .replace('{phone}', config.vCardPhone)
-                                                            .replace('{contactName}', config.vCardName);
-                                                        window.open(`https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
+                                                            .replace('{phone}', localConfig.vCardPhone)
+                                                            .replace('{contactName}', localConfig.vCardName);
+                                                        window.open(`https://wa.me/${localConfig.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
                                                     }}
                                                     className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
                                                 >
@@ -749,8 +776,8 @@ const AdminPanel: React.FC = () => {
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                                         <h4 className="font-semibold text-purple-700 mb-2">Tarjeta de Contacto (vCard)</h4>
                                         <p className="text-xs text-slate-500 mb-2">Información para que los padres guarden el contacto.</p>
-                                        <InputGroup label="Nombre del Contacto" value={config.vCardName} onChange={(v) => handleInputChange('vCardName', v)} />
-                                        <InputGroup label="Teléfono de Contacto" value={config.vCardPhone} onChange={(v) => handleInputChange('vCardPhone', v)} />
+                                        <InputGroup label="Nombre del Contacto" value={localConfig.vCardName} onChange={(v) => handleInputChange('vCardName', v)} />
+                                        <InputGroup label="Teléfono de Contacto" value={localConfig.vCardPhone} onChange={(v) => handleInputChange('vCardPhone', v)} />
                                     </div>
 
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -759,15 +786,15 @@ const AdminPanel: React.FC = () => {
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 mb-1">Departamento</label>
                                                 <select
-                                                    value={config.defaultDepartment}
+                                                    value={localConfig.defaultDepartment}
                                                     onChange={(e) => handleInputChange('defaultDepartment', e.target.value)}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                                 >
                                                     {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                                                 </select>
                                             </div>
-                                            <InputGroup label="Municipio" value={config.defaultMunicipality} onChange={(v) => handleInputChange('defaultMunicipality', v)} />
-                                            <InputGroup label="Distrito" value={config.defaultDistrict} onChange={(v) => handleInputChange('defaultDistrict', v)} />
+                                            <InputGroup label="Municipio" value={localConfig.defaultMunicipality} onChange={(v) => handleInputChange('defaultMunicipality', v)} />
+                                            <InputGroup label="Distrito" value={localConfig.defaultDistrict} onChange={(v) => handleInputChange('defaultDistrict', v)} />
                                         </div>
                                     </div>
                                 </div >
@@ -1096,13 +1123,14 @@ const TabButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
     </button>
 );
 
-const TabButtonMobile = ({ active, onClick, icon }: { active: boolean, onClick: () => void, icon: React.ReactNode }) => (
+const TabButtonMobile = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
     <button
         onClick={onClick}
-        className={`flex-1 flex items-center justify-center p-4 border-b-2 transition-colors ${active ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500'
+        className={`flex-1 flex flex-col items-center justify-center p-3 border-b-2 transition-colors min-w-[70px] ${active ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500'
             }`}
     >
         {icon}
+        <span className="text-[10px] font-medium mt-1">{label}</span>
     </button>
 );
 

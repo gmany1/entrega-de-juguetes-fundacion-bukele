@@ -34,6 +34,15 @@ const AdminPanel: React.FC = () => {
 
     const [registrationCount, setRegistrationCount] = useState(0);
     const [registrations, setRegistrations] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            getRegistrations().then(regs => {
+                setRegistrationCount(regs.length);
+                setRegistrations(regs);
+            });
+        }
+    }, [isAuthenticated, isOpen]);
     const [aiSourceImage, setAiSourceImage] = useState<string | null>(null);
     const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);

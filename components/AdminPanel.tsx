@@ -348,6 +348,22 @@ const AdminPanel: React.FC = () => {
         });
     }, [filteredRegistrations]);
 
+
+    // Collapsible Logic
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+    const toggleGroup = (groupName: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) {
+                next.delete(groupName);
+            } else {
+                next.add(groupName);
+            }
+            return next;
+        });
+    };
+
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
             // Select all currently visible (filtered)
@@ -1246,72 +1262,71 @@ const AdminPanel: React.FC = () => {
                                                 </div>
                                             </div>
 
-                                        </div>
-                                </>
+                                        </>
+                                    )}
+                                </div>
                             )}
-                        </div>
-                        )}
 
-                        {
-                            activeTab === 'data' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
+                            {
+                                activeTab === 'data' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
 
-                                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
-                                        <div className="bg-blue-50 p-4 rounded-full">
-                                            <Database className="w-12 h-12 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
-                                            <div className="text-slate-500">Registros Totales</div>
-                                        </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                                            <button
-                                                onClick={() => handleExport('csv')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar CSV
-                                            </button>
-                                            <button
-                                                onClick={() => handleExport('xlsx')}
-                                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                            >
-                                                <Download className="w-4 h-4" /> Exportar Excel
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
-                                        <div className="flex items-start gap-4">
-                                            <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
-                                                <AlertTriangle className="w-6 h-6 text-red-600" />
+                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
+                                            <div className="bg-blue-50 p-4 rounded-full">
+                                                <Database className="w-12 h-12 text-blue-600" />
                                             </div>
-                                            <div className="flex-grow">
-                                                <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
-                                                <p className="text-sm text-red-700 mb-4">
-                                                    Las siguientes acciones son destructivas y no se pueden deshacer.
-                                                </p>
+                                            <div>
+                                                <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
+                                                <div className="text-slate-500">Registros Totales</div>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
                                                 <button
-                                                    onClick={handleResetDatabase}
-                                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                    onClick={() => handleExport('csv')}
+                                                    className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
                                                 >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    Eliminar Toda la Base de Datos
+                                                    <Download className="w-4 h-4" /> Exportar CSV
+                                                </button>
+                                                <button
+                                                    onClick={() => handleExport('xlsx')}
+                                                    className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                                >
+                                                    <Download className="w-4 h-4" /> Exportar Excel
                                                 </button>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            )
-                        }
 
+                                        <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
+                                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                                </div>
+                                                <div className="flex-grow">
+                                                    <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
+                                                    <p className="text-sm text-red-700 mb-4">
+                                                        Las siguientes acciones son destructivas y no se pueden deshacer.
+                                                    </p>
+                                                    <button
+                                                        onClick={handleResetDatabase}
+                                                        className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        Eliminar Toda la Base de Datos
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            }
+
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
-    </div >
-);
+                )}
+            </div>
+        </div >
+    );
 };
 
 // UI Helpers

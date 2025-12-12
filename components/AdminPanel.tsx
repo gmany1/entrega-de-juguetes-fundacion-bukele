@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, AlertTriangle } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
@@ -1090,49 +1090,68 @@ const AdminPanel: React.FC = () => {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(([distributor, regs]) => (
-                                                                <React.Fragment key={distributor}>
-                                                                    <tr className="bg-slate-100/50">
-                                                                        <td colSpan={6} className="px-6 py-2 font-semibold text-slate-700 text-xs uppercase tracking-wider border-y border-slate-200">
-                                                                            {distributor} ({regs.length})
-                                                                        </td>
-                                                                    </tr>
-                                                                    {regs.map((reg) => (
-                                                                        <tr key={reg.id} className={`hover:bg-slate-50 ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
-                                                                            <td className="px-6 py-4">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    checked={selectedIds.has(reg.id)}
-                                                                                    onChange={() => handleSelectRow(reg.id)}
-                                                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                                />
-                                                                            </td>
-                                                                            <td className="px-6 py-4 font-medium text-slate-900">
-                                                                                {reg.fullName}
-                                                                            </td>
-                                                                            <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                                            <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
-                                                                            <td className="px-6 py-4">
-                                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                                    reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                        'bg-purple-100 text-purple-700'
-                                                                                    }`}>
-                                                                                    {reg.childCount} {reg.genderSelection}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td className="px-6 py-4 text-right">
-                                                                                <button
-                                                                                    onClick={() => handleDelete(reg.id, reg.fullName)}
-                                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-2"
-                                                                                    title="Eliminar Registro"
-                                                                                >
-                                                                                    <Trash2 className="w-4 h-4" />
-                                                                                </button>
+                                                            {groupedRegistrations.map(([distributor, regs]) => {
+                                                                const isExpanded = expandedGroups.has(distributor);
+                                                                return (
+                                                                    <React.Fragment key={distributor}>
+                                                                        <tr
+                                                                            onClick={() => toggleGroup(distributor)}
+                                                                            className="bg-slate-50/80 hover:bg-slate-100 cursor-pointer transition-colors"
+                                                                        >
+                                                                            <td colSpan={6} className="px-6 py-3 border-y border-slate-200">
+                                                                                <div className="flex items-center gap-2 font-bold text-slate-700 text-xs uppercase tracking-wider">
+                                                                                    {isExpanded ? (
+                                                                                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                                                                                    ) : (
+                                                                                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                                                                                    )}
+                                                                                    {distributor}
+                                                                                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] ml-2">
+                                                                                        {regs.length}
+                                                                                    </span>
+                                                                                </div>
                                                                             </td>
                                                                         </tr>
-                                                                    ))}
-                                                                </React.Fragment>
-                                                            ))}
+                                                                        {isExpanded && regs.map((reg) => (
+                                                                            <tr key={reg.id} className={`hover:bg-slate-50 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
+                                                                                <td className="px-6 py-4">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={selectedIds.has(reg.id)}
+                                                                                        onChange={() => handleSelectRow(reg.id)}
+                                                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="px-6 py-4 font-medium text-slate-900">
+                                                                                    {reg.fullName}
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
+                                                                                <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
+                                                                                <td className="px-6 py-4">
+                                                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                        reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                            'bg-purple-100 text-purple-700'
+                                                                                        }`}>
+                                                                                        {reg.childCount} {reg.genderSelection}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-6 py-4 text-right">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleDelete(reg.id, reg.fullName);
+                                                                                        }}
+                                                                                        className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                                                                                        title="Eliminar Registro"
+                                                                                    >
+                                                                                        <Trash2 className="w-4 h-4" />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
                                                             {groupedRegistrations.length === 0 && (
                                                                 <tr>
                                                                     <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">
@@ -1148,138 +1167,151 @@ const AdminPanel: React.FC = () => {
                                                 <div className="md:hidden">
                                                     <div className="divide-y divide-slate-100">
                                                         <div className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(([distributor, regs]) => (
-                                                                <React.Fragment key={distributor}>
-                                                                    <div className="bg-slate-100/80 px-4 py-2 text-xs font-bold text-slate-600 uppercase tracking-wide sticky top-0 backdrop-blur-sm z-10">
-                                                                        {distributor} ({regs.length})
-                                                                    </div>
-                                                                    {regs.map((reg) => (
+                                                            {groupedRegistrations.map(([distributor, regs]) => {
+                                                                const isExpanded = expandedGroups.has(distributor);
+                                                                return (
+                                                                    <React.Fragment key={distributor}>
                                                                         <div
-                                                                            key={reg.id}
-                                                                            className={`p-4 flex flex-col gap-3 ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
-                                                                            onClick={() => {
-                                                                                // Optional: Toggle selection on click
-                                                                            }}
+                                                                            onClick={() => toggleGroup(distributor)}
+                                                                            className="bg-slate-50/90 px-4 py-3 border-b border-slate-200 sticky top-0 backdrop-blur-sm z-10 flex justify-between items-center cursor-pointer active:bg-slate-200 transition-colors"
                                                                         >
-                                                                            <div className="flex justify-between items-start">
-                                                                                <div className="flex items-start gap-3">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={selectedIds.has(reg.id)}
-                                                                                        onChange={() => handleSelectRow(reg.id)}
-                                                                                        className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
-                                                                                    />
-                                                                                    <div>
-                                                                                        <div className="font-bold text-slate-900">{reg.fullName}</div>
-                                                                                        <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                                            <div className="font-bold text-slate-700 text-xs uppercase tracking-wide flex items-center gap-2">
+                                                                                {distributor}
+                                                                                <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">
+                                                                                    {regs.length}
+                                                                                </span>
+                                                                            </div>
+                                                                            {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
+                                                                        </div>
+
+                                                                        {isExpanded && regs.map((reg) => (
+                                                                            <div
+                                                                                key={reg.id}
+                                                                                className={`p-4 flex flex-col gap-3 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
+                                                                                onClick={() => {
+                                                                                    // Optional: Toggle selection on click
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex justify-between items-start">
+                                                                                    <div className="flex items-start gap-3">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            checked={selectedIds.has(reg.id)}
+                                                                                            onChange={() => handleSelectRow(reg.id)}
+                                                                                            className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
+                                                                                        />
+                                                                                        <div>
+                                                                                            <div className="font-bold text-slate-900">{reg.fullName}</div>
+                                                                                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                                                            </div>
                                                                                         </div>
                                                                                     </div>
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleDelete(reg.id, reg.fullName);
+                                                                                        }}
+                                                                                        className="text-slate-400 hover:text-red-500 p-1"
+                                                                                    >
+                                                                                        <Trash2 className="w-5 h-5" />
+                                                                                    </button>
                                                                                 </div>
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleDelete(reg.id, reg.fullName);
-                                                                                    }}
-                                                                                    className="text-slate-400 hover:text-red-500 p-1"
-                                                                                >
-                                                                                    <Trash2 className="w-5 h-5" />
-                                                                                </button>
-                                                                            </div>
 
-                                                                            <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
-                                                                                <div className="flex items-center gap-1.5 text-slate-600">
-                                                                                    <MessageSquare className="w-3.5 h-3.5 text-green-600" />
-                                                                                    {reg.whatsapp}
-                                                                                </div>
-                                                                                <div className="flex items-center justify-end gap-1.5">
-                                                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                                        reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                            'bg-purple-100 text-purple-700'
-                                                                                        }`}>
-                                                                                        {reg.childCount} {reg.genderSelection}
-                                                                                    </span>
+                                                                                <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
+                                                                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                                                                        <MessageSquare className="w-3.5 h-3.5 text-green-600" />
+                                                                                        {reg.whatsapp}
+                                                                                    </div>
+                                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                                'bg-purple-100 text-purple-700'
+                                                                                            }`}>
+                                                                                            {reg.childCount} {reg.genderSelection}
+                                                                                        </span>
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </React.Fragment>
-                                                            ))}
+                                                                        ))}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                        </div>        </div>
+                                                    {filteredRegistrations.length === 0 && (
+                                                        <div className="p-8 text-center text-slate-500 text-sm">
+                                                            No se encontraron registros.
                                                         </div>
-                                                        {filteredRegistrations.length === 0 && (
-                                                            <div className="p-8 text-center text-slate-500 text-sm">
-                                                                No se encontraron registros.
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    )}
                                                 </div>
-
                                             </div>
-                                        </>
-                                    )}
-                                </div>
+
+                                        </div>
+                                </>
                             )}
+                        </div>
+                        )}
 
-                            {
-                                activeTab === 'data' && (
-                                    <div className="space-y-6 animate-fade-in">
-                                        <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
+                        {
+                            activeTab === 'data' && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
 
-                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
-                                            <div className="bg-blue-50 p-4 rounded-full">
-                                                <Database className="w-12 h-12 text-blue-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
-                                                <div className="text-slate-500">Registros Totales</div>
-                                            </div>
-
-                                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                                                <button
-                                                    onClick={() => handleExport('csv')}
-                                                    className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                                >
-                                                    <Download className="w-4 h-4" /> Exportar CSV
-                                                </button>
-                                                <button
-                                                    onClick={() => handleExport('xlsx')}
-                                                    className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                                >
-                                                    <Download className="w-4 h-4" /> Exportar Excel
-                                                </button>
-                                            </div>
+                                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
+                                        <div className="bg-blue-50 p-4 rounded-full">
+                                            <Database className="w-12 h-12 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
+                                            <div className="text-slate-500">Registros Totales</div>
                                         </div>
 
-                                        <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
-                                                    <AlertTriangle className="w-6 h-6 text-red-600" />
-                                                </div>
-                                                <div className="flex-grow">
-                                                    <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
-                                                    <p className="text-sm text-red-700 mb-4">
-                                                        Las siguientes acciones son destructivas y no se pueden deshacer.
-                                                    </p>
-                                                    <button
-                                                        onClick={handleResetDatabase}
-                                                        className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                        Eliminar Toda la Base de Datos
-                                                    </button>
-                                                </div>
+                                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                                            <button
+                                                onClick={() => handleExport('csv')}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                            >
+                                                <Download className="w-4 h-4" /> Exportar CSV
+                                            </button>
+                                            <button
+                                                onClick={() => handleExport('xlsx')}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                            >
+                                                <Download className="w-4 h-4" /> Exportar Excel
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
+                                        <div className="flex items-start gap-4">
+                                            <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
+                                                <AlertTriangle className="w-6 h-6 text-red-600" />
+                                            </div>
+                                            <div className="flex-grow">
+                                                <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
+                                                <p className="text-sm text-red-700 mb-4">
+                                                    Las siguientes acciones son destructivas y no se pueden deshacer.
+                                                </p>
+                                                <button
+                                                    onClick={handleResetDatabase}
+                                                    className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Eliminar Toda la Base de Datos
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                )
-                            }
+                                </div>
+                            )
+                        }
 
-                        </div >
-                    </div >
-                )}
-            </div >
-        </div >
-    );
+                    </div>
+                </div>
+            )}
+        </div>
+    </div >
+);
 };
 
 // UI Helpers

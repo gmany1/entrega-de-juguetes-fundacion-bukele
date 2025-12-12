@@ -332,8 +332,8 @@ const AdminPanel: React.FC = () => {
 
     const groupedRegistrations = useMemo(() => {
         const groups: Record<string, Registration[]> = {};
-        // Taking top 100 for display performance while maintaining grouping relevance
-        const displayList = filteredRegistrations.slice(0, 100);
+        // Use all filtered registrations (no limit)
+        const displayList = filteredRegistrations;
 
         displayList.forEach(reg => {
             const key = reg.ticketDistributor || 'Sin Distribuidor';
@@ -341,9 +341,17 @@ const AdminPanel: React.FC = () => {
             groups[key].push(reg);
         });
 
+        // Smart Sort: By Total Tickets (Ascending: Fewest Tickets First)
         return Object.entries(groups).sort((a, b) => {
-            if (a[0] === 'Sin Distribuidor') return 1;
-            if (b[0] === 'Sin Distribuidor') return -1;
+            const totalTicketsA = a[1].reduce((acc, r) => acc + r.childCount, 0);
+            const totalTicketsB = b[1].reduce((acc, r) => acc + r.childCount, 0);
+
+            // 1. Primary Sort: Total Tickets (Low to High)
+            if (totalTicketsA !== totalTicketsB) {
+                return totalTicketsA - totalTicketsB;
+            }
+
+            // 2. Secondary Sort: Distributor Name (A-Z)
             return a[0].localeCompare(b[0]);
         });
     }, [filteredRegistrations]);
@@ -390,7 +398,7 @@ const AdminPanel: React.FC = () => {
         if (confirm(`¿Estás seguro de que deseas eliminar ${selectedIds.size} registros seleccionados? Esta acción no se puede deshacer.`)) {
             let successCount = 0;
             // Iterate and delete (or use a batch service if available, currently loop for simplicity with existing service)
-            for (const id of Array.from(selectedIds)) {
+            for (const id of Array.from(selectedIds) as string[]) {
                 const res = await deleteRegistration(id);
                 if (res.success) successCount++;
             }

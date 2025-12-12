@@ -1122,9 +1122,14 @@ const AdminPanel: React.FC = () => {
                                                                                         <ChevronRight className="w-4 h-4 text-slate-400" />
                                                                                     )}
                                                                                     {distributor}
-                                                                                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] ml-2">
-                                                                                        {regs.length}
-                                                                                    </span>
+                                                                                    <div className="flex gap-2 ml-3">
+                                                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                            {regs.length} Familias
+                                                                                        </span>
+                                                                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                            {regs.reduce((acc, curr) => acc + curr.childCount, 0)} Juguetes
+                                                                                        </span>
+                                                                                    </div>
                                                                                 </div>
                                                                             </td>
                                                                         </tr>
@@ -1191,11 +1196,16 @@ const AdminPanel: React.FC = () => {
                                                                             onClick={() => toggleGroup(distributor)}
                                                                             className="bg-slate-50/90 px-4 py-3 border-b border-slate-200 sticky top-0 backdrop-blur-sm z-10 flex justify-between items-center cursor-pointer active:bg-slate-200 transition-colors"
                                                                         >
-                                                                            <div className="font-bold text-slate-700 text-xs uppercase tracking-wide flex items-center gap-2">
+                                                                            <div className="font-bold text-slate-700 text-xs uppercase tracking-wide flex items-center gap-2 flex-wrap">
                                                                                 {distributor}
-                                                                                <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">
-                                                                                    {regs.length}
-                                                                                </span>
+                                                                                <div className="flex gap-2">
+                                                                                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                        {regs.length} Fam
+                                                                                    </span>
+                                                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                        {regs.reduce((acc, curr) => acc + curr.childCount, 0)} Jug
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
                                                                             {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
                                                                         </div>

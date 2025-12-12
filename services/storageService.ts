@@ -1,5 +1,5 @@
 import { db } from './firebaseConfig';
-import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
 import { Registration, StorageResult } from '../types';
 
 const COLLECTION_NAME = 'registrations';
@@ -105,5 +105,36 @@ export const clearAllRegistrations = async (): Promise<StorageResult> => {
   } catch (error) {
     console.error("Error clearing database", error);
     return { success: false, message: "Error al reiniciar la base de datos." };
+  }
+};
+
+// --- Global Configuration (Settings) ---
+
+export const getAppConfig = async (): Promise<any | null> => {
+  try {
+    const docRef = doc(db, 'settings', 'app_config');
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return docSnap.data();
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching config", error);
+    return null;
+  }
+};
+
+export const saveAppConfig = async (config: any): Promise<StorageResult> => {
+  try {
+    const docRef = doc(db, 'settings', 'app_config');
+    // merge: true allows us to update only fields that changed if we wanted, 
+    // but here we likely want to overwrite or merge the whole config object.
+    await setDoc(docRef, config, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving config", error);
+    return { success: false, message: "Error al guardar la configuración." };
   }
 };

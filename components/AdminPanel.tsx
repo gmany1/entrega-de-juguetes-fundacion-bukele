@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { GoogleGenAI } from "@google/genai";
 import { getRegistrations, deleteRegistration, clearAllRegistrations } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
-import { AppConfig, DEPARTMENTS } from '../types';
+import { AppConfig, DEPARTMENTS, Registration } from '../types';
 
 
 
@@ -33,7 +33,7 @@ const AdminPanel: React.FC = () => {
     }, [isOpen, config]);
 
     const [registrationCount, setRegistrationCount] = useState(0);
-    const [registrations, setRegistrations] = useState<any[]>([]);
+    const [registrations, setRegistrations] = useState<Registration[]>([]);
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -52,10 +52,30 @@ const AdminPanel: React.FC = () => {
     // Statistics Data Processing
     const stats = useMemo(() => {
         // 1. Gender Distribution
+        // Form saves "Niño" or "Niña". Old data might be "niños", "niñas", "ambos".
         const genderData = [
-            { name: 'Niños', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niños' ? r.childCount : 0), 0) },
-            { name: 'Niñas', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'niñas' ? r.childCount : 0), 0) },
-            { name: 'Mixto', value: registrations.reduce((acc, r) => acc + (r.genderSelection === 'ambos' ? r.childCount : 0), 0) }
+            {
+                name: 'Niños',
+                value: registrations.reduce((acc, r) => {
+                    const g = (r.genderSelection || '').toLowerCase();
+                    // Match 'niño', 'niños', 'nino', etc.
+                    return acc + (g.includes('niño') || g.includes('nino') ? r.childCount : 0);
+                }, 0)
+            },
+            {
+                name: 'Niñas',
+                value: registrations.reduce((acc, r) => {
+                    const g = (r.genderSelection || '').toLowerCase();
+                    return acc + (g.includes('niña') || g.includes('nina') ? r.childCount : 0);
+                }, 0)
+            },
+            {
+                name: 'Mixto/Otro',
+                value: registrations.reduce((acc, r) => {
+                    const g = (r.genderSelection || '').toLowerCase();
+                    return acc + (g.includes('ambos') || g.includes('mixto') ? r.childCount : 0);
+                }, 0)
+            }
         ].filter(d => d.value > 0);
 
         // 2. Top Municipalities
@@ -985,7 +1005,8 @@ const AdminPanel: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="overflow-x-auto flex-grow">
+                                                {/* Desktop Table View */}
+                                                <div className="hidden md:block overflow-x-auto flex-grow">
                                                     <table className="w-full text-sm text-left">
                                                         <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
                                                             <tr>
@@ -1042,16 +1063,76 @@ const AdminPanel: React.FC = () => {
                                                                     </td>
                                                                 </tr>
                                                             ))}
-                                                            {filteredRegistrations.length === 0 && (
-                                                                <tr>
-                                                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                                                                        No se encontraron registros que coincidan con tu búsqueda.
-                                                                    </td>
-                                                                </tr>
-                                                            )}
                                                         </tbody>
                                                     </table>
                                                 </div>
+
+                                                {/* Mobile Card View */}
+                                                <div className="md:hidden">
+                                                    <div className="divide-y divide-slate-100">
+                                                        {filteredRegistrations.slice(0, 50).map((reg) => (
+                                                            <div
+                                                                key={reg.id}
+                                                                className={`p-4 flex flex-col gap-3 ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
+                                                                onClick={() => {
+                                                                    // Optional: Toggle selection on click, or keep it strictly for checkbox
+                                                                }}
+                                                            >
+                                                                <div className="flex justify-between items-start">
+                                                                    <div className="flex items-start gap-3">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedIds.has(reg.id)}
+                                                                            onChange={() => handleSelectRow(reg.id)}
+                                                                            className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
+                                                                        />
+                                                                        <div>
+                                                                            <div className="font-bold text-slate-900">{reg.fullName}</div>
+                                                                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDelete(reg.id, reg.fullName);
+                                                                        }}
+                                                                        className="text-slate-400 hover:text-red-500 p-1"
+                                                                    >
+                                                                        <Trash2 className="w-5 h-5" />
+                                                                    </button>
+                                                                </div>
+
+                                                                <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
+                                                                    {reg.ticketDistributor && (
+                                                                        <div className="col-span-2 text-xs text-slate-500">
+                                                                            <span className="font-semibold text-slate-700">Entregado por:</span> {reg.ticketDistributor}
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                                                        <MessageSquare className="w-3.5 h-3.5 text-green-600" />
+                                                                        {reg.whatsapp}
+                                                                    </div>
+                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                'bg-purple-100 text-purple-700'
+                                                                            }`}>
+                                                                            {reg.childCount} {reg.genderSelection}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {filteredRegistrations.length === 0 && (
+                                                            <div className="p-8 text-center text-slate-500 text-sm">
+                                                                No se encontraron registros.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
                                             </div>
                                         </>
                                     )}

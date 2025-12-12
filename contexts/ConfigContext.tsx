@@ -4,7 +4,7 @@ import { getAppConfig, saveAppConfig } from '../services/storageService';
 
 interface ConfigContextType {
   config: AppConfig;
-  updateConfig: (newConfig: Partial<AppConfig>) => void;
+  updateConfig: (newConfig: Partial<AppConfig>) => Promise<{ success: boolean; message?: string }>;
   resetConfig: () => void;
 }
 
@@ -43,17 +43,24 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const updateConfig = async (newConfig: Partial<AppConfig>) => {
-    setConfig((prev) => {
-      const updated = { ...prev, ...newConfig };
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(updated));
+    const updated = { ...config, ...newConfig }; // Use current config as base
 
-      // Save globally
-      saveAppConfig(updated).then(res => {
-        if (!res.success) console.error("Failed to save config to cloud:", res.message);
-      });
+    // 1. Optimistic Update (UI + LocalStorage)
+    setConfig(updated);
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(updated));
 
-      return updated;
-    });
+    // 2. Persist to Cloud
+    try {
+      const result = await saveAppConfig(updated);
+      if (!result.success) {
+        console.error("Failed to save config to cloud:", result.message);
+        // Optional: Revert state if critical, but for config usually keep local overrides or show error
+      }
+      return result;
+    } catch (error) {
+      console.error("Critical error saving config:", error);
+      return { success: false, message: "Error de conexión al guardar." };
+    }
   };
 
   const resetConfig = () => {

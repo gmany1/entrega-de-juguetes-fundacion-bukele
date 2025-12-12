@@ -90,25 +90,45 @@ const AdminPanel: React.FC = () => {
             .slice(0, 5);
 
         // 3. Family Size Distribution
-        const familySizeCount: Record<number, number> = {};
+        // 3. Family Size Distribution (Grouped by Household/Phone)
+        const familySizeCountsByPhone: Record<string, number> = {};
         registrations.forEach(r => {
-            const count = r.childCount;
-            familySizeCount[count] = (familySizeCount[count] || 0) + 1;
+            // Normalize phone to avoid duplicates (remove spaces/dashes if any, simplified here)
+            const phone = r.whatsapp?.trim() || 'unknown';
+            if (phone !== 'unknown') {
+                familySizeCountsByPhone[phone] = (familySizeCountsByPhone[phone] || 0) + r.childCount;
+            } else {
+                // If no phone, treat as single unique entry
+                familySizeCountsByPhone[`unknown_${r.id}`] = r.childCount;
+            }
         });
-        const familySizeData = Object.entries(familySizeCount)
+
+        const familySizeDist: Record<number, number> = {};
+        Object.values(familySizeCountsByPhone).forEach(count => {
+            familySizeDist[count] = (familySizeDist[count] || 0) + 1;
+        });
+
+        const familySizeData = Object.entries(familySizeDist)
             .map(([size, count]) => ({ size: `${size} Niños`, count }))
             .sort((a, b) => Number(a.size.split(' ')[0]) - Number(b.size.split(' ')[0]));
 
-        // 4. Registration Timeline (Last 7 days or all time if short)
-        const timelineCount: Record<string, number> = {};
-        registrations.forEach(r => {
-            const date = new Date(r.timestamp).toLocaleDateString('es-SV', { month: 'short', day: 'numeric' });
-            timelineCount[date] = (timelineCount[date] || 0) + 1;
-        });
-        const timelineData = Object.entries(timelineCount)
+        // 4. Registration Timeline (Sorted Chronologically)
+        const timelineMap: Record<string, { count: number, label: string }> = {};
 
-            .map(([date, count]) => ({ date, count }));
-        // Note: In a real app, you'd sort by actual date object, but this is a simplified view
+        registrations.forEach(r => {
+            const d = new Date(r.timestamp);
+            const key = d.toISOString().split('T')[0]; // Sortable Key: 2023-12-24
+            const label = d.toLocaleDateString('es-SV', { month: 'short', day: 'numeric' }); // Display: 24 dic
+
+            if (!timelineMap[key]) {
+                timelineMap[key] = { count: 0, label };
+            }
+            timelineMap[key].count++;
+        });
+
+        const timelineData = Object.entries(timelineMap)
+            .sort((a, b) => a[0].localeCompare(b[0])) // Sort by date key
+            .map(([_, val]) => ({ date: val.label, count: val.count }));
 
         // 5. Age Distribution
         const ageCount: Record<number, number> = {};
@@ -123,12 +143,13 @@ const AdminPanel: React.FC = () => {
         }));
 
 
-        // 6. Distributor Stats
+        // 6. Distributor Stats (All distributors, sorted by performance)
         const distCount: Record<string, number> = {};
         registrations.forEach(r => {
             const dist = r.ticketDistributor || 'No Asignado';
             distCount[dist] = (distCount[dist] || 0) + r.childCount;
         });
+
         const distributorData = Object.entries(distCount)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
@@ -191,10 +212,19 @@ const AdminPanel: React.FC = () => {
         setHasChanges(true);
     };
 
-    const handleSave = () => {
-        updateConfig(localConfig);
-        setHasChanges(false);
-        alert("¡Cambios guardados exitosamente!");
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const result = await updateConfig(localConfig);
+        setIsSaving(false);
+
+        if (result.success) {
+            setHasChanges(false);
+            alert("¡Cambios guardados exitosamente en la nube!");
+        } else {
+            alert("Error al guardar en la nube: " + (result.message || "Intenta nuevamente."));
+        }
     };
 
     // AI Image Helpers
@@ -299,6 +329,24 @@ const AdminPanel: React.FC = () => {
             r.whatsapp.includes(searchTerm)
         );
     }, [registrations, searchTerm]);
+
+    const groupedRegistrations = useMemo(() => {
+        const groups: Record<string, Registration[]> = {};
+        // Taking top 100 for display performance while maintaining grouping relevance
+        const displayList = filteredRegistrations.slice(0, 100);
+
+        displayList.forEach(reg => {
+            const key = reg.ticketDistributor || 'Sin Distribuidor';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(reg);
+        });
+
+        return Object.entries(groups).sort((a, b) => {
+            if (a[0] === 'Sin Distribuidor') return 1;
+            if (b[0] === 'Sin Distribuidor') return -1;
+            return a[0].localeCompare(b[0]);
+        });
+    }, [filteredRegistrations]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
@@ -414,9 +462,10 @@ const AdminPanel: React.FC = () => {
                         {hasChanges && (
                             <button
                                 onClick={handleSave}
-                                className="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all animate-bounce-short"
+                                disabled={isSaving}
+                                className={`bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all ${isSaving ? 'opacity-70 cursor-wait' : 'animate-bounce-short'}`}
                             >
-                                Guardar
+                                {isSaving ? 'Guardando...' : 'Guardar'}
                             </button>
                         )}
                         <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors ml-2">
@@ -523,77 +572,70 @@ const AdminPanel: React.FC = () => {
                         <div className="flex-grow p-6 overflow-y-auto bg-slate-50">
 
                             {activeTab === 'general' && (
-                                <div className="space-y-6 animate-fade-in">
+                                <div className="space-y-6 animate-fade-in pb-10">
                                     <SectionHeader title="Configuración General" description="Controla el estado principal del evento." />
 
-                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <div className="flex items-center justify-between">
+                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+
+                                        {/* Status Toggle */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                                             <div>
-                                                <label className="font-semibold text-slate-700">Estado del Registro</label>
-                                                <p className="text-xs text-slate-500">Activa o desactiva el formulario manualmente.</p>
+                                                <label className="font-bold text-slate-800 text-lg">Estado del Registro</label>
+                                                <p className="text-sm text-slate-500 mt-1">Activa o desactiva el formulario públicamente.</p>
                                             </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
+                                            <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
                                                 <input
                                                     type="checkbox"
                                                     checked={localConfig.isRegistrationOpen}
                                                     onChange={(e) => handleInputChange('isRegistrationOpen', e.target.checked)}
                                                     className="sr-only peer"
                                                 />
-                                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
                                             </label>
                                         </div>
 
                                         <hr className="border-slate-100" />
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Límite Máximo de Registros</label>
-                                            <input
-                                                type="number"
-                                                value={localConfig.maxRegistrations}
-                                                onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                                            />
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                Actualmente hay {registrationCount} registros. Si bajas el límite por debajo de este número, se cerrará el registro.
-                                            </p>
-                                        </div>
+                                        {/* Limits & Date */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-sm font-bold text-slate-700 mb-2">Límite Máximo de Registros</label>
+                                                <input
+                                                    type="number"
+                                                    value={localConfig.maxRegistrations}
+                                                    onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
+                                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                                />
+                                                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                                    <span className={`w-2 h-2 rounded-full ${registrationCount >= localConfig.maxRegistrations ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                                                    Actualmente: <span className="font-semibold">{registrationCount}</span> registros.
+                                                </p>
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Fecha del Evento (Texto)</label>
-                                            <input
-                                                type="text"
-                                                value={localConfig.eventDate}
-                                                onChange={(e) => handleInputChange('eventDate', e.target.value)}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                                            />
+                                            <div>
+                                                <label className="block text-sm font-bold text-slate-700 mb-2">Fecha del Evento (Texto)</label>
+                                                <input
+                                                    type="text"
+                                                    value={localConfig.eventDate}
+                                                    onChange={(e) => handleInputChange('eventDate', e.target.value)}
+                                                    placeholder="Ej: 24 de Diciembre, 2:00 PM"
+                                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                                />
+                                            </div>
                                         </div>
 
                                         <hr className="border-slate-100" />
 
+                                        {/* Distributors */}
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Distribuidores de Tickets</label>
-                                            <div className="flex flex-wrap gap-2 mb-2">
-                                                {(localConfig.ticketDistributors || []).map((dist, idx) => (
-                                                    <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm">
-                                                        {dist}
-                                                        <button
-                                                            onClick={() => {
-                                                                const newDistributors = localConfig.ticketDistributors.filter((_, i) => i !== idx);
-                                                                handleInputChange('ticketDistributors', newDistributors);
-                                                            }}
-                                                            className="hover:text-blue-900"
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <div className="flex gap-2">
+                                            <label className="block text-sm font-bold text-slate-700 mb-3">Distribuidores de Tickets</label>
+
+                                            <div className="flex flex-col sm:flex-row gap-2 mb-4">
                                                 <input
                                                     type="text"
                                                     id="newDistributor"
                                                     placeholder="Nombre del distribuidor"
-                                                    className="flex-grow px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                                                    className="flex-grow px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
                                                             e.preventDefault();
@@ -615,12 +657,34 @@ const AdminPanel: React.FC = () => {
                                                             input.value = '';
                                                         }
                                                     }}
-                                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                                                    className="bg-slate-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-700 shadow-sm whitespace-nowrap active:scale-95 transition-all"
                                                 >
-                                                    Agregar
+                                                    + Agregar
                                                 </button>
                                             </div>
-                                            <p className="text-xs text-slate-500 mt-1">Estos nombres aparecerán en la lista desplegable del formulario de registro.</p>
+
+                                            <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100 min-h-[100px] content-start">
+                                                {(localConfig.ticketDistributors || []).length === 0 ? (
+                                                    <span className="text-slate-400 text-sm italic w-full text-center py-4">No hay distribuidores asignados.</span>
+                                                ) : (
+                                                    (localConfig.ticketDistributors || []).map((dist, idx) => (
+                                                        <span key={idx} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm shadow-sm animate-fade-in">
+                                                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                            {dist}
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newDistributors = localConfig.ticketDistributors.filter((_, i) => i !== idx);
+                                                                    handleInputChange('ticketDistributors', newDistributors);
+                                                                }}
+                                                                className="ml-1 text-slate-400 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </span>
+                                                    ))
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-2">Estos nombres aparecerán en la lista desplegable del formulario.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1026,43 +1090,56 @@ const AdminPanel: React.FC = () => {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {filteredRegistrations.slice(0, 50).map((reg) => (
-                                                                <tr key={reg.id} className={`hover:bg-slate-50 ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
-                                                                    <td className="px-6 py-4">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={selectedIds.has(reg.id)}
-                                                                            onChange={() => handleSelectRow(reg.id)}
-                                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                        />
-                                                                    </td>
-                                                                    <td className="px-6 py-4 font-medium text-slate-900">
-                                                                        {reg.fullName}
-                                                                        {reg.ticketDistributor && (
-                                                                            <div className="text-xs text-slate-400 font-normal mt-0.5">Por: {reg.ticketDistributor}</div>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
-                                                                    <td className="px-6 py-4">
-                                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                'bg-purple-100 text-purple-700'
-                                                                            }`}>
-                                                                            {reg.childCount} {reg.genderSelection}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-right">
-                                                                        <button
-                                                                            onClick={() => handleDelete(reg.id, reg.fullName)}
-                                                                            className="text-slate-400 hover:text-red-500 transition-colors p-2"
-                                                                            title="Eliminar Registro"
-                                                                        >
-                                                                            <Trash2 className="w-4 h-4" />
-                                                                        </button>
+                                                            {groupedRegistrations.map(([distributor, regs]) => (
+                                                                <React.Fragment key={distributor}>
+                                                                    <tr className="bg-slate-100/50">
+                                                                        <td colSpan={6} className="px-6 py-2 font-semibold text-slate-700 text-xs uppercase tracking-wider border-y border-slate-200">
+                                                                            {distributor} ({regs.length})
+                                                                        </td>
+                                                                    </tr>
+                                                                    {regs.map((reg) => (
+                                                                        <tr key={reg.id} className={`hover:bg-slate-50 ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
+                                                                            <td className="px-6 py-4">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={selectedIds.has(reg.id)}
+                                                                                    onChange={() => handleSelectRow(reg.id)}
+                                                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                                />
+                                                                            </td>
+                                                                            <td className="px-6 py-4 font-medium text-slate-900">
+                                                                                {reg.fullName}
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
+                                                                            <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
+                                                                            <td className="px-6 py-4">
+                                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                    reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                        'bg-purple-100 text-purple-700'
+                                                                                    }`}>
+                                                                                    {reg.childCount} {reg.genderSelection}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-6 py-4 text-right">
+                                                                                <button
+                                                                                    onClick={() => handleDelete(reg.id, reg.fullName)}
+                                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                                                                                    title="Eliminar Registro"
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4" />
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </React.Fragment>
+                                                            ))}
+                                                            {groupedRegistrations.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">
+                                                                        No se encontraron registros recientes.
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            )}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1070,61 +1147,65 @@ const AdminPanel: React.FC = () => {
                                                 {/* Mobile Card View */}
                                                 <div className="md:hidden">
                                                     <div className="divide-y divide-slate-100">
-                                                        {filteredRegistrations.slice(0, 50).map((reg) => (
-                                                            <div
-                                                                key={reg.id}
-                                                                className={`p-4 flex flex-col gap-3 ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
-                                                                onClick={() => {
-                                                                    // Optional: Toggle selection on click, or keep it strictly for checkbox
-                                                                }}
-                                                            >
-                                                                <div className="flex justify-between items-start">
-                                                                    <div className="flex items-start gap-3">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={selectedIds.has(reg.id)}
-                                                                            onChange={() => handleSelectRow(reg.id)}
-                                                                            className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
-                                                                        />
-                                                                        <div>
-                                                                            <div className="font-bold text-slate-900">{reg.fullName}</div>
-                                                                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                        <div className="divide-y divide-slate-100">
+                                                            {groupedRegistrations.map(([distributor, regs]) => (
+                                                                <React.Fragment key={distributor}>
+                                                                    <div className="bg-slate-100/80 px-4 py-2 text-xs font-bold text-slate-600 uppercase tracking-wide sticky top-0 backdrop-blur-sm z-10">
+                                                                        {distributor} ({regs.length})
+                                                                    </div>
+                                                                    {regs.map((reg) => (
+                                                                        <div
+                                                                            key={reg.id}
+                                                                            className={`p-4 flex flex-col gap-3 ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
+                                                                            onClick={() => {
+                                                                                // Optional: Toggle selection on click
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex justify-between items-start">
+                                                                                <div className="flex items-start gap-3">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={selectedIds.has(reg.id)}
+                                                                                        onChange={() => handleSelectRow(reg.id)}
+                                                                                        className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
+                                                                                    />
+                                                                                    <div>
+                                                                                        <div className="font-bold text-slate-900">{reg.fullName}</div>
+                                                                                        <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleDelete(reg.id, reg.fullName);
+                                                                                    }}
+                                                                                    className="text-slate-400 hover:text-red-500 p-1"
+                                                                                >
+                                                                                    <Trash2 className="w-5 h-5" />
+                                                                                </button>
+                                                                            </div>
+
+                                                                            <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
+                                                                                <div className="flex items-center gap-1.5 text-slate-600">
+                                                                                    <MessageSquare className="w-3.5 h-3.5 text-green-600" />
+                                                                                    {reg.whatsapp}
+                                                                                </div>
+                                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                        reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                            'bg-purple-100 text-purple-700'
+                                                                                        }`}>
+                                                                                        {reg.childCount} {reg.genderSelection}
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleDelete(reg.id, reg.fullName);
-                                                                        }}
-                                                                        className="text-slate-400 hover:text-red-500 p-1"
-                                                                    >
-                                                                        <Trash2 className="w-5 h-5" />
-                                                                    </button>
-                                                                </div>
-
-                                                                <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
-                                                                    {reg.ticketDistributor && (
-                                                                        <div className="col-span-2 text-xs text-slate-500">
-                                                                            <span className="font-semibold text-slate-700">Entregado por:</span> {reg.ticketDistributor}
-                                                                        </div>
-                                                                    )}
-                                                                    <div className="flex items-center gap-1.5 text-slate-600">
-                                                                        <MessageSquare className="w-3.5 h-3.5 text-green-600" />
-                                                                        {reg.whatsapp}
-                                                                    </div>
-                                                                    <div className="flex items-center justify-end gap-1.5">
-                                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                'bg-purple-100 text-purple-700'
-                                                                            }`}>
-                                                                            {reg.childCount} {reg.genderSelection}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                                    ))}
+                                                                </React.Fragment>
+                                                            ))}
+                                                        </div>
                                                         {filteredRegistrations.length === 0 && (
                                                             <div className="p-8 text-center text-slate-500 text-sm">
                                                                 No se encontraron registros.

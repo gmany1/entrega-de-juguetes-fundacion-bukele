@@ -27,7 +27,7 @@ const RegistrationForm: React.FC = () => {
   };
   const [remainingSlots, setRemainingSlots] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedData, setSubmittedData] = useState<{ name: string, count: number } | null>(null);
+  const [submittedData, setSubmittedData] = useState<{ name: string, count: number, whatsappLink: string } | null>(null);
 
   // New state for children list
   const [children, setChildren] = useState([{ id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño', age: '' }]);
@@ -194,19 +194,11 @@ const RegistrationForm: React.FC = () => {
         }
       }
 
-      // Handle success
-      setSubmittedData({
-        name: formData.fullName,
-        count: children.length
-      });
-
       // Refresh slots
       const slots = await getRemainingSlots(config.maxRegistrations);
       setRemainingSlots(slots);
 
-      // Open WhatsApp for the first child (or generic)
-      // Using the logic: we just need one contact point.
-      const firstChild = children[0];
+      // Generate WhatsApp Link
       const message = config.whatsappTemplate
         .replace('{name}', formData.fullName)
         .replace('{count}', children.length.toString())
@@ -219,6 +211,15 @@ const RegistrationForm: React.FC = () => {
         .replace('{date}', config.eventDate);
 
       const link = `https://wa.me/${config.orgPhoneNumber}?text=${encodeURIComponent(message)}`;
+
+      // Handle success state
+      setSubmittedData({
+        name: formData.fullName,
+        count: children.length,
+        whatsappLink: link
+      });
+
+      // Try to auto-open (best effort)
       window.open(link, '_blank');
 
     } catch (err: any) {
@@ -230,6 +231,16 @@ const RegistrationForm: React.FC = () => {
   };
 
   if (submittedData) {
+    const handleCombinedAction = () => {
+      // 1. Download VCard (Auto)
+      downloadVCard();
+
+      // 2. Open WhatsApp (Primary Goal) - Small delay to ensure download starts
+      setTimeout(() => {
+        window.open(submittedData.whatsappLink, '_blank');
+      }, 300);
+    };
+
     return (
       <div className="max-w-2xl mx-auto my-12 p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-lg animate-fade-in-up">
         <div className="flex justify-center mb-4">
@@ -238,24 +249,29 @@ const RegistrationForm: React.FC = () => {
         <h2 className="text-3xl font-bold text-green-800 mb-4">¡Registro Exitoso!</h2>
         <p className="text-green-700 text-lg mb-6">
           Gracias <strong>{submittedData.name}</strong>. Hemos procesado el registro de {submittedData.count} niño(s).
-          Se ha abierto una ventana de WhatsApp para confirmar tu asistencia.
+          <br className="hidden md:block" />
+          Para finalizar, confirma tu asistencia en WhatsApp (esto también guardará nuestro contacto).
         </p>
 
-        <div className="flex flex-col gap-3 justify-center items-center mb-6">
+        <div className="flex flex-col gap-4 justify-center items-center mb-8">
           <button
-            onClick={downloadVCard}
-            className="flex items-center gap-2 bg-white border border-green-300 text-green-700 hover:bg-green-100 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+            onClick={handleCombinedAction}
+            className="w-full max-w-sm py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xl shadow-lg flex items-center justify-center gap-3 transform transition-transform active:scale-95 animate-pulse-slow"
           >
-            <Contact className="w-4 h-4" />
-            Guardar Contacto de la Fundación
+            <Send className="w-6 h-6" />
+            Confirmar Asistencia Ahora
           </button>
+
+          <p className="text-sm text-slate-500">
+            ¿No se descargó el contacto? <button onClick={downloadVCard} className="text-green-600 underline font-medium">Haz clic aquí para guardarlo manualmente</button>
+          </p>
         </div>
 
         <button
           onClick={() => window.location.reload()}
-          className="text-green-800 underline hover:text-green-900"
+          className="text-green-800 underline hover:text-green-900 text-sm"
         >
-          Volver al inicio
+          Registrar otra familia
         </button>
       </div>
     );
@@ -498,20 +514,20 @@ const RegistrationForm: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-[0.98] ${isSubmitting
+              className={`group w-full py-4 px-6 rounded-xl text-white font-bold text-lg shadow-xl shadow-blue-600/20 flex items-center justify-center gap-4 transition-all active:scale-[0.98] hover:shadow-blue-600/40 ${isSubmitting
                 ? 'bg-slate-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900'
+                : 'bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 hover:-translate-y-0.5'
                 }`}
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="animate-spin w-5 h-5" />
+                  <Loader2 className="animate-spin w-6 h-6" />
                   <span>Procesando...</span>
                 </>
               ) : (
                 <>
-                  <Send className="w-5 h-5" />
-                  Registrarme para la entrega de juguetes
+                  <Send className="w-6 h-6 stroke-[2.5] flex-shrink-0 group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform duration-300" />
+                  <span className="drop-shadow-md">Registrarme para la entrega de juguetes</span>
                 </>
               )}
             </button>

@@ -154,7 +154,13 @@ const AdminPanel: React.FC = () => {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        return { genderData, municipalData, familySizeData, timelineData, ageData, distributorData };
+        // 7. Red Flags (Phones with > 3 children)
+        const redFlags = Object.entries(familySizeCountsByPhone)
+            .filter(([phone, count]) => count > 3 && !phone.startsWith('unknown_'))
+            .map(([phone, count]) => ({ phone, count }))
+            .sort((a, b) => b.count - a.count);
+
+        return { genderData, municipalData, familySizeData, timelineData, ageData, distributorData, redFlags };
     }, [registrations]);
 
     // Progress
@@ -601,6 +607,7 @@ const AdminPanel: React.FC = () => {
 
                                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
 
+
                                         {/* Status Toggle */}
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                                             <div>
@@ -953,6 +960,43 @@ const AdminPanel: React.FC = () => {
                                                     ></div>
                                                 </div>
                                             </div>
+
+                                            {/* Red Flags Alert Section */}
+                                            {stats?.redFlags && stats.redFlags.length > 0 && (
+                                                <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm animate-fade-in">
+                                                    <div className="flex items-start">
+                                                        <div className="flex-shrink-0">
+                                                            <AlertTriangle className="h-6 w-6 text-red-600" />
+                                                        </div>
+                                                        <div className="ml-3 w-full">
+                                                            <h3 className="text-lg font-bold text-red-800">
+                                                                Alerta de Anomalías ({stats.redFlags.length})
+                                                            </h3>
+                                                            <p className="text-sm text-red-700 mt-1">
+                                                                Los siguientes números de teléfono tienen más de 3 niños registrados:
+                                                            </p>
+                                                            <div className="mt-3 overflow-x-auto">
+                                                                <table className="min-w-full text-sm text-left">
+                                                                    <thead>
+                                                                        <tr className="border-b border-red-200">
+                                                                            <th className="py-2 text-red-900 font-semibold">Teléfono</th>
+                                                                            <th className="py-2 text-red-900 font-semibold text-right">Cantidad de Niños</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {stats.redFlags.map((item, idx) => (
+                                                                            <tr key={idx} className="border-b border-red-100 last:border-0 hover:bg-red-100/50 transition-colors">
+                                                                                <td className="py-2 text-red-800 font-mono">{item.phone}</td>
+                                                                                <td className="py-2 text-red-800 font-bold text-right">{item.count}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 

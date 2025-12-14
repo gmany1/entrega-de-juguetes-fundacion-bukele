@@ -50,7 +50,7 @@ export interface AppConfig {
   eventDate: string;
   maxRegistrations: number;
   isRegistrationOpen: boolean;
-  ticketDistributors: string[]; // List of available distributors
+  ticketDistributors: { name: string; phone: string }[]; // List of available distributors
 
   // Hero
   heroTitle: string;
@@ -93,22 +93,22 @@ export const DEFAULT_CONFIG: AppConfig = {
   maxRegistrations: 850,
   isRegistrationOpen: true,
   ticketDistributors: [
-    "Adilton Hernandez",
-    "Ingrid Flores",
-    "Adriana Linares",
-    "Medardo Salinas",
-    "Selene Roman",
-    "Judith Aldana",
-    "Yancy Grismery Flores",
-    "Emerson Hernandez",
-    "Noe Alvarado",
-    "Ingrid Alvarado",
-    "Seño Domi",
-    "Maritza Chevez",
-    "Veronica Flores",
-    "Roxana Miron",
-    "Vladimir Mendoza",
-    "Miguel Lazo"
+    { name: "Adilton Hernandez", phone: "" },
+    { name: "Ingrid Flores", phone: "" },
+    { name: "Adriana Linares", phone: "" },
+    { name: "Medardo Salinas", phone: "" },
+    { name: "Selene Roman", phone: "" },
+    { name: "Judith Aldana", phone: "" },
+    { name: "Yancy Grismery Flores", phone: "" },
+    { name: "Emerson Hernandez", phone: "" },
+    { name: "Noe Alvarado", phone: "" },
+    { name: "Ingrid Alvarado", phone: "" },
+    { name: "Seño Domi", phone: "" },
+    { name: "Maritza Chevez", phone: "" },
+    { name: "Veronica Flores", phone: "" },
+    { name: "Roxana Miron", phone: "" },
+    { name: "Vladimir Mendoza", phone: "" },
+    { name: "Miguel Lazo", phone: "" }
   ], // Default value
   heroTitle: "Compartiendo Sonrisas",
   heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",

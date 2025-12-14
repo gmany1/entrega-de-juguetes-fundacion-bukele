@@ -388,7 +388,7 @@ const RegistrationForm: React.FC = () => {
               >
                 <option value="">-- Seleccione un distribuidor --</option>
                 {config.ticketDistributors.map((dist, idx) => (
-                  <option key={idx} value={dist}>{dist}</option>
+                  <option key={idx} value={dist.name}>{dist.name}</option>
                 ))}
               </select>
             </div>

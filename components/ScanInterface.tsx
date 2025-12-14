@@ -103,8 +103,10 @@ const ScanInterface: React.FC = () => {
             setChildValues(reg.children[childIndex]);
             setLoading(false);
 
-        } catch (e) {
-            setError("Error de conexión al verificar.");
+        } catch (e: any) {
+            console.error("Fetch error", e);
+            const msg = e.code ? `Error Code: ${e.code}` : (e.message || "Error desconocido");
+            setError(`Error de conexión: ${msg}`);
             setLoading(false);
         }
     };

@@ -23,7 +23,12 @@ const ScanInterface: React.FC = () => {
         if (scannerElement && !scannerRef.current) {
             const scanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                {
+                    fps: 10,
+                    qrbox: { width: 300, height: 300 }, // Larger box
+                    aspectRatio: 1.0,
+                    showTorchButtonIfSupported: true
+                },
                 false
             );
 
@@ -43,6 +48,13 @@ const ScanInterface: React.FC = () => {
         // Handle double verify
         if (scanResult === decodedText) return;
 
+        console.log("Scan success:", decodedText);
+
+        // Haptic Feedback
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+
         setScanResult(decodedText);
         setLoading(true);
         setError(null);
@@ -54,14 +66,14 @@ const ScanInterface: React.FC = () => {
 
             // Validate Structure
             if (!data.parentId || !data.childId) {
-                throw new Error("Código QR inválido (formato antiguo o incorrecto).");
+                throw new Error("Formato QR incorrecto.");
             }
 
             fetchData(data.parentId, data.childId);
 
         } catch (e) {
-            console.error(e);
-            setError("Código QR no válido o corrupto.");
+            console.error("QR Parse Error", e);
+            setError("QR inválido. Intenta acercar más la cámara.");
             setLoading(false);
         }
     };
@@ -163,71 +175,67 @@ const ScanInterface: React.FC = () => {
 
             {/* Result Card */}
             {childValues && parentData && !loading && !error && (
-                <div className="bg-white rounded-2xl shadow-xl w-full border border-slate-200 overflow-hidden animate-fade-in">
-                    {/* Header Status */}
-                    <div className={`p-6 text-center ${childValues.status === 'delivered' ? 'bg-orange-100' : 'bg-green-100'}`}>
+                <div className="bg-white rounded-2xl shadow-xl w-full border border-slate-200 overflow-hidden animate-fade-in max-w-sm mx-auto">
+
+                    {/* Header - Validation Status */}
+                    <div className={`p-8 text-center flex flex-col items-center justify-center ${childValues.status === 'delivered' ? 'bg-orange-500 text-white' : 'bg-green-600 text-white'}`}>
                         {childValues.status === 'delivered' ? (
                             <>
-                                <div className="inline-flex bg-orange-200 p-3 rounded-full mb-2">
-                                    <PackageCheck className="w-8 h-8 text-orange-700" />
-                                </div>
-                                <h2 className="text-2xl font-black text-orange-800 uppercase tracking-wide">Ya Entregado</h2>
-                                <p className="text-orange-700 font-medium">Este código ya fue marcado previamente.</p>
-                                <p className="text-xs text-orange-600 mt-1">Fecha: {new Date(childValues.deliveredAt!).toLocaleString()}</p>
+                                <PackageCheck className="w-16 h-16 mb-2 opacity-90" />
+                                <h2 className="text-3xl font-black uppercase tracking-wider">YA ENTREGADO</h2>
+                                <p className="text-white/80 font-medium mt-1">Este ticket ya fue canjeado</p>
                             </>
                         ) : (
                             <>
-                                <div className="inline-flex bg-green-200 p-3 rounded-full mb-2">
-                                    <Check className="w-8 h-8 text-green-700" />
-                                </div>
-                                <h2 className="text-2xl font-black text-green-800 uppercase tracking-wide">Válido para Entrega</h2>
-                                <p className="text-green-700 font-medium">El código es correcto.</p>
+                                <Check className="w-16 h-16 mb-2 opacity-90" />
+                                <h2 className="text-4xl font-black uppercase tracking-wider">VALIDADO</h2>
+                                <p className="text-white/80 font-medium mt-1">Ticket Correcto</p>
                             </>
                         )}
                     </div>
 
-                    {/* Content */}
-                    <div className="p-8 space-y-6">
-                        <div className="text-center">
-                            <div className="text-sm text-slate-500 uppercase tracking-wide font-bold mb-1">Niño/a Beneficiario</div>
-                            <div className="text-3xl font-bold text-slate-900">{childValues.fullName || "Sin Nombre"}</div>
-                            <div className="inline-block bg-slate-100 px-4 py-1 rounded-full text-slate-700 font-bold mt-2 border border-slate-200">
-                                {childValues.age} Años - {childValues.gender}
+                    {/* Essential Info */}
+                    <div className="p-6 text-center space-y-6">
+
+                        {/* Invitation Number */}
+                        <div>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Número de Invitación</p>
+                            <div className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
+                                {childValues.inviteNumber}
                             </div>
                         </div>
 
-                        <div className="border-t border-b border-slate-100 py-4 grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span className="block text-slate-400 text-xs uppercase">Responsable</span>
-                                <span className="font-semibold text-slate-700">{parentData.parentName}</span>
-                            </div>
-                            <div className="text-right">
-                                <span className="block text-slate-400 text-xs uppercase">Invitación</span>
-                                <span className="font-mono font-bold text-blue-600 text-lg">{childValues.inviteNumber}</span>
+                        {/* Responsible Name */}
+                        <div className="border-t border-slate-100 pt-4">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Responsable</p>
+                            <div className="text-xl font-bold text-slate-700 leading-tight">
+                                {parentData.parentName || parentData.fullName}
                             </div>
                         </div>
 
-                        {/* Actions */}
-                        {childValues.status !== 'delivered' && !successMessage ? (
+                        {/* Action Buttons */}
+                        <div className="pt-2">
+                            {childValues.status !== 'delivered' && !successMessage ? (
+                                <button
+                                    onClick={handleDeliver}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-[0.98]"
+                                >
+                                    <PackageCheck className="w-6 h-6" />
+                                    ENTREGAR JUGUETE
+                                </button>
+                            ) : (
+                                <div className="bg-slate-100 text-slate-500 py-3 rounded-xl font-bold border border-slate-200">
+                                    {successMessage || "Ticket Procesado"}
+                                </div>
+                            )}
+
                             <button
-                                onClick={handleDeliver}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                                onClick={resetScan}
+                                className="mt-3 w-full text-slate-400 hover:text-slate-600 font-medium py-3 rounded-xl transition-colors text-sm hover:underline"
                             >
-                                <PackageCheck className="w-6 h-6" />
-                                ENTREGAR JUGUETE
+                                Escanear Siguiente
                             </button>
-                        ) : (
-                            <div className="bg-green-50 text-green-800 p-4 rounded-xl text-center font-bold border border-green-200">
-                                {successMessage || "✅ Entrega registrada correctamente"}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={resetScan}
-                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-3 rounded-xl transition-colors"
-                        >
-                            Escanear Siguiente
-                        </button>
+                        </div>
                     </div>
                 </div>
             )}

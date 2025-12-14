@@ -98,6 +98,10 @@ const ScanInterface: React.FC = () => {
 
             setParentData(reg);
 
+            if (!reg.children || !Array.isArray(reg.children)) {
+                throw new Error("El registro no contiene datos de niños válidos.");
+            }
+
             const childIndex = reg.children.findIndex(c => c.id === childId);
             if (childIndex === -1) {
                 setError("Niño no encontrado en este registro.");

@@ -1079,87 +1079,94 @@ const AdminPanel: React.FC = () => {
                                                             No hay distribuidores registrados.
                                                         </div>
                                                     ) : (
-                                                        (localConfig.ticketDistributors || []).map((dist, idx) => (
-                                                            <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                                                                {editingDistributorIndex === idx ? (
-                                                                    <div className="flex-1 flex flex-col md:flex-row items-center gap-2 mr-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            value={tempDistributorName}
-                                                                            onChange={(e) => setTempDistributorName(e.target.value)}
-                                                                            className="flex-[2] px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                                                                            placeholder="Nombre"
-                                                                            autoFocus
-                                                                        />
-                                                                        <input
-                                                                            type="tel"
-                                                                            value={tempDistributorPhone} // We need to add this state variable
-                                                                            onChange={(e) => setTempDistributorPhone(e.target.value)}
-                                                                            className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                                                                            placeholder="Teléfono"
-                                                                        />
-                                                                        <div className="flex gap-1">
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    const updated = [...(localConfig.ticketDistributors || [])];
-                                                                                    updated[idx] = { name: tempDistributorName.trim(), phone: tempDistributorPhone.trim() };
-                                                                                    handleInputChange('ticketDistributors', updated);
-                                                                                    setEditingDistributorIndex(null);
-                                                                                }}
-                                                                                className="text-green-600 hover:bg-green-50 p-1 rounded"
-                                                                                title="Guardar"
-                                                                            >
-                                                                                <Check size={16} />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => setEditingDistributorIndex(null)}
-                                                                                className="text-red-500 hover:bg-red-50 p-1 rounded"
-                                                                                title="Cancelar"
-                                                                            >
-                                                                                <X size={16} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <div className="flex items-center gap-3">
-                                                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
-                                                                                {(dist.name || '').charAt(0).toUpperCase()}
-                                                                            </div>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
-                                                                                {dist.phone && <span className="text-xs text-slate-400">{dist.phone}</span>}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    setEditingDistributorIndex(idx);
-                                                                                    setTempDistributorName(dist.name);
-                                                                                    setTempDistributorPhone(dist.phone || '');
-                                                                                }}
-                                                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                                                title="Editar"
-                                                                            >
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
-                                                                                        const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                        (localConfig.ticketDistributors || []).map((rawDist, idx) => {
+                                                            // Normalize data: Handle legacy strings and new objects
+                                                            const dist = typeof rawDist === 'string'
+                                                                ? { name: rawDist, phone: '' }
+                                                                : (rawDist || { name: '', phone: '' });
+
+                                                            return (
+                                                                <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                                                                    {editingDistributorIndex === idx ? (
+                                                                        <div className="flex-1 flex flex-col md:flex-row items-center gap-2 mr-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={tempDistributorName}
+                                                                                onChange={(e) => setTempDistributorName(e.target.value)}
+                                                                                className="flex-[2] px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
+                                                                                placeholder="Nombre"
+                                                                                autoFocus
+                                                                            />
+                                                                            <input
+                                                                                type="tel"
+                                                                                value={tempDistributorPhone} // We need to add this state variable
+                                                                                onChange={(e) => setTempDistributorPhone(e.target.value)}
+                                                                                className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
+                                                                                placeholder="Teléfono"
+                                                                            />
+                                                                            <div className="flex gap-1">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const updated = [...(localConfig.ticketDistributors || [])];
+                                                                                        updated[idx] = { name: tempDistributorName.trim(), phone: tempDistributorPhone.trim() };
                                                                                         handleInputChange('ticketDistributors', updated);
-                                                                                    }
-                                                                                }}
-                                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                                title="Eliminar"
-                                                                            >
-                                                                                <Trash2 size={14} />
-                                                                            </button>
+                                                                                        setEditingDistributorIndex(null);
+                                                                                    }}
+                                                                                    className="text-green-600 hover:bg-green-50 p-1 rounded"
+                                                                                    title="Guardar"
+                                                                                >
+                                                                                    <Check size={16} />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setEditingDistributorIndex(null)}
+                                                                                    className="text-red-500 hover:bg-red-50 p-1 rounded"
+                                                                                    title="Cancelar"
+                                                                                >
+                                                                                    <X size={16} />
+                                                                                </button>
+                                                                            </div>
                                                                         </div>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))
+                                                                    ) : (
+                                                                        <>
+                                                                            <div className="flex items-center gap-3">
+                                                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
+                                                                                    {(dist.name || '').charAt(0).toUpperCase()}
+                                                                                </div>
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
+                                                                                    {dist.phone && <span className="text-xs text-slate-400">{dist.phone}</span>}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingDistributorIndex(idx);
+                                                                                        setTempDistributorName(dist.name);
+                                                                                        setTempDistributorPhone(dist.phone || '');
+                                                                                    }}
+                                                                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                                    title="Editar"
+                                                                                >
+                                                                                    <Edit2 size={14} />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
+                                                                                            const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                                                            handleInputChange('ticketDistributors', updated);
+                                                                                        }
+                                                                                    }}
+                                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                                    title="Eliminar"
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })
                                                     )}
                                                 </div>
                                             </div>

@@ -20,9 +20,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-// Initialize Auth and sign in anonymously to satisfy security rules (if set to "auth != null")
-import { getAuth, signInAnonymously } from "firebase/auth";
+// Initialize Auth and sign in anonymously to satisfy security rules
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+
 export const auth = getAuth(app);
-signInAnonymously(auth).catch((error) => {
-    console.warn("Autenticación Anónima falló. Asegúrate de habilitar 'Anonymous' en Firebase Console -> Authentication -> Sign-in method.", error);
+
+// Helper to wait for auth before making requests
+export const waitForAuth = new Promise<void>((resolve) => {
+    // If already signed in
+    if (auth.currentUser) {
+        resolve();
+        return;
+    }
+
+    // Wait for change
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+            resolve();
+            unsubscribe();
+        }
+    });
+
+    // Attempt sign-in if needed (for anonymous)
+    signInAnonymously(auth).catch((error) => {
+        console.warn("Autenticación Anónima falló. Habilita 'Anonymous' en Firebase Console.", error);
+        // We resolve anyway so the app doesn't hang forever, 
+        // but requests might fail if rules strictly require auth.
+        resolve();
+    });
 });

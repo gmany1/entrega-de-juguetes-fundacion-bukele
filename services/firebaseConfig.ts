@@ -19,3 +19,10 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+
+// Initialize Auth and sign in anonymously to satisfy security rules (if set to "auth != null")
+import { getAuth, signInAnonymously } from "firebase/auth";
+export const auth = getAuth(app);
+signInAnonymously(auth).catch((error) => {
+    console.warn("Autenticación Anónima falló. Asegúrate de habilitar 'Anonymous' en Firebase Console -> Authentication -> Sign-in method.", error);
+});

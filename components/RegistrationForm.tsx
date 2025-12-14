@@ -30,7 +30,7 @@ const RegistrationForm: React.FC = () => {
   const [submittedData, setSubmittedData] = useState<{ name: string, count: number, whatsappLink: string } | null>(null);
 
   // New state for children list
-  const [children, setChildren] = useState([{ id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño', age: '' }]);
+  const [children, setChildren] = useState([{ id: crypto.randomUUID(), name: '', inviteNumber: '', gender: 'Niño', age: '' }]);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -68,7 +68,7 @@ const RegistrationForm: React.FC = () => {
     if (error) setError(null);
   };
 
-  const handleChildChange = (id: string, field: 'inviteNumber' | 'gender' | 'age', value: string) => {
+  const handleChildChange = (id: string, field: 'inviteNumber' | 'gender' | 'age' | 'name', value: string) => {
     setChildren(prev => prev.map(child => {
       if (child.id === id) {
         return {
@@ -82,7 +82,7 @@ const RegistrationForm: React.FC = () => {
   };
 
   const addChild = () => {
-    setChildren(prev => [...prev, { id: crypto.randomUUID(), inviteNumber: '', gender: 'Niño', age: '' }]);
+    setChildren(prev => [...prev, { id: crypto.randomUUID(), name: '', inviteNumber: '', gender: 'Niño', age: '' }]);
   };
 
   const removeChild = (id: string) => {
@@ -122,6 +122,10 @@ const RegistrationForm: React.FC = () => {
 
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
+      if (!child.name.trim()) {
+        setError(`Escribe el nombre del niño/a #${i + 1}.`);
+        return false;
+      }
       if (!child.inviteNumber.trim()) {
         setError(`El número de invitación es obligatorio para el niño #${i + 1}.`);
         return false;
@@ -172,26 +176,33 @@ const RegistrationForm: React.FC = () => {
     setError(null);
 
     try {
-      // Sequential submission
-      for (const child of children) {
-        const result = await saveRegistration({
-          fullName: formData.fullName,
-          inviteNumber: child.inviteNumber,
-          whatsapp: formData.whatsapp,
-          ticketDistributor: formData.ticketDistributor,
-          childCount: 1, // Logic remains 1 entry per invite
-          genderSelection: child.gender,
-          department: formData.department,
-          municipality: formData.municipality,
-          district: formData.district,
+      // Prepare payload with new structure
+      const registrationPayload = {
+        parentName: formData.fullName,
+        whatsapp: formData.whatsapp,
+        ticketDistributor: formData.ticketDistributor,
+        department: formData.department,
+        municipality: formData.municipality,
+        district: formData.district,
+        addressDetails: formData.addressDetails,
+        children: children.map(c => ({
+          id: c.id,
+          fullName: c.name,
+          age: parseInt(c.age, 10),
+          gender: c.gender,
+          inviteNumber: c.inviteNumber,
+          status: 'pending' as const
+        })),
+        // Legacy mapping for backwards compatibility if needed, 
+        // though we are saving a fresh record structure now
+        fullName: formData.fullName,
+        childCount: children.length
+      };
 
-          addressDetails: formData.addressDetails,
-          childAge: parseInt(child.age, 10)
-        }, config.maxRegistrations);
+      const result = await saveRegistration(registrationPayload, config.maxRegistrations);
 
-        if (!result.success) {
-          throw new Error(`Error con la invitación ${child.inviteNumber}: ${result.message}`);
-        }
+      if (!result.success) {
+        throw new Error(result.message);
       }
 
       // Refresh slots
@@ -202,7 +213,7 @@ const RegistrationForm: React.FC = () => {
       const message = config.whatsappTemplate
         .replace('{name}', formData.fullName)
         .replace('{count}', children.length.toString())
-        .replace('{invites}', children.map(c => c.inviteNumber).join(', '))
+        .replace('{invites}', children.map(c => `${c.inviteNumber} (${c.name})`).join('\\n• '))
         // Contact variables
         .replace('{phone}', config.vCardPhone)
         .replace('{contactName}', config.vCardName)
@@ -389,9 +400,21 @@ const RegistrationForm: React.FC = () => {
             <div className="space-y-4">
               {children.map((child, index) => (
                 <div key={child.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200 relative">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Nombre del Niño/a #{index + 1}</label>
+                    <input
+                      type="text"
+                      value={child.name}
+                      onChange={(e) => handleChildChange(child.id, 'name', e.target.value)}
+                      placeholder="Ej. María Pérez"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none mb-3"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1">N° Invitación (Niño #{index + 1})</label>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">N° Invitación</label>
                       <input
                         type="text"
                         value={child.inviteNumber}

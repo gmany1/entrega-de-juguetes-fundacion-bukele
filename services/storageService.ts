@@ -1,6 +1,6 @@
 import { db } from './firebaseConfig';
-import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
-import { Registration, StorageResult } from '../types';
+import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch, setDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { Registration, StorageResult, SystemUser } from '../types';
 
 const COLLECTION_NAME = 'registrations';
 
@@ -8,11 +8,19 @@ const COLLECTION_NAME = 'registrations';
 // though we store it as ISO string based on original types.
 // We will stick to storing `timestamp` as string for compatibility with existing type definition.
 
-export const getRegistrations = async (): Promise<Registration[]> => {
+export const getRegistrations = async (distributorFilter?: string): Promise<Registration[]> => {
   try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('timestamp', 'desc'));
+    let q;
+    if (distributorFilter) {
+      q = query(collection(db, COLLECTION_NAME), where('ticketDistributor', '==', distributorFilter), orderBy('timestamp', 'desc'));
+    } else {
+      q = query(collection(db, COLLECTION_NAME), orderBy('timestamp', 'desc'));
+    }
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Registration));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data() as Omit<Registration, 'id'>;
+      return { id: doc.id, ...data };
+    });
   } catch (error) {
     console.error("Error accessing Firestore", error);
     return [];
@@ -31,42 +39,118 @@ export const getRemainingSlots = async (maxLimit: number): Promise<number> => {
   }
 };
 
+// Helper to sync counter if missing (Self-healing)
+const ensureCounterSynced = async () => {
+  const counterRef = doc(db, 'counters', 'registrations');
+  const snap = await getDoc(counterRef);
+  if (!snap.exists()) {
+    const coll = collection(db, COLLECTION_NAME);
+    const snapshot = await getCountFromServer(coll);
+    await setDoc(counterRef, { count: snapshot.data().count });
+  }
+};
+
 export const saveRegistration = async (data: Omit<Registration, 'id' | 'timestamp'>, maxLimit: number): Promise<StorageResult> => {
   try {
-    // 1. Check Global Limit in Real-Time
-    const slots = await getRemainingSlots(maxLimit);
-    if (slots <= 0) {
-      return { success: false, message: 'Lo sentimos, se ha alcanzado el límite máximo de cupos.' };
-    }
+    await ensureCounterSynced();
 
-    // 2. Check Duplicate Invite Number
-    const qInvite = query(collection(db, COLLECTION_NAME), where("inviteNumber", "==", data.inviteNumber), limit(1));
-    const inviteSnap = await getDocs(qInvite);
-    if (!inviteSnap.empty) {
-      return { success: false, message: `El número de invitación ${data.inviteNumber} ya ha sido utilizado.` };
-    }
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. Read Counter (Fail Fast)
+      const counterRef = doc(db, 'counters', 'registrations');
+      const counterSnap = await transaction.get(counterRef);
 
-    // 3. Duplicate WhatsApp check removed to allow multiple children per parent
+      if (!counterSnap.exists()) {
+        throw "Counter synced but missing in transaction. Retry.";
+      }
 
-    // 4. Save to Firestore
-    const newRegistrationData = {
-      ...data,
-      timestamp: new Date().toISOString()
-    };
+      const currentCount = counterSnap.data().count;
+      if (currentCount >= maxLimit) {
+        throw "Lo sentimos, se ha alcanzado el límite máximo de cupos.";
+      }
 
-    // addDoc auto-generates an ID
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), newRegistrationData);
+      // 2. Client-side Prep
+      const newInvites = data.children.map(c => c.inviteNumber);
+      const uniqueNewInvites = new Set(newInvites);
+      if (uniqueNewInvites.size !== newInvites.length) {
+        throw 'Hay números de invitación repetidos en este registro.';
+      }
 
-    const completeRegistration: Registration = {
-      id: docRef.id,
-      ...newRegistrationData
-    };
+      // 3. Check Duplicates (Atomic Read)
+      for (const invite of newInvites) {
+        const inviteRef = doc(db, 'taken_invites', invite);
+        const inviteSnap = await transaction.get(inviteRef);
+        if (inviteSnap.exists()) {
+          throw `La invitación ${invite} ya fue utilizada por ${inviteSnap.data().usedByChild}.`;
+        }
+      }
 
-    return { success: true, data: completeRegistration };
+      // 4. Writes
+      const regRef = doc(collection(db, COLLECTION_NAME));
+      const newRegistrationData = {
+        ...data,
+        timestamp: new Date().toISOString()
+      };
 
+      transaction.set(regRef, newRegistrationData);
+
+      // Update Counter
+      transaction.update(counterRef, { count: currentCount + 1 });
+
+      // Mark invites
+      for (const child of data.children) {
+        const inviteRef = doc(db, 'taken_invites', child.inviteNumber);
+        transaction.set(inviteRef, {
+          usedByChild: child.fullName,
+          parentRegId: regRef.id,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return { id: regRef.id, ...newRegistrationData };
+    });
+
+    return { success: true, data: result as Registration };
+
+  } catch (error: any) {
+    console.error("Transaction Error", error);
+    // Clean error message if it's one of ours
+    const msg = typeof error === 'string' ? error : "Hubo un error al guardar tu registro. Intenta de nuevo.";
+    return { success: false, message: msg };
+  }
+};
+
+export const updateChildStatus = async (registrationId: string, childId: string, status: 'delivered', deliveredAt: string): Promise<StorageResult> => {
+  try {
+    const regRef = doc(db, COLLECTION_NAME, registrationId);
+    const regSnap = await getDoc(regRef);
+
+    if (!regSnap.exists()) return { success: false, message: "Registro no encontrado" };
+
+    const data = regSnap.data() as Registration;
+    const updatedChildren = data.children.map(child => {
+      if (child.id === childId) {
+        return { ...child, status, deliveredAt };
+      }
+      return child;
+    });
+
+    await setDoc(regRef, { children: updatedChildren }, { merge: true });
+    return { success: true };
   } catch (error) {
-    console.error("Error saving registration", error);
-    return { success: false, message: "Hubo un error al guardar tu registro. Intenta de nuevo." };
+    console.error("Error updating child status", error);
+    return { success: false, message: "Error al actualizar estado." };
+  }
+};
+
+
+export const updateRegistration = async (id: string, data: Partial<Registration>): Promise<StorageResult> => {
+  try {
+    const regRef = doc(db, COLLECTION_NAME, id);
+    await setDoc(regRef, data, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating registration", error);
+    return { success: false, message: "Error al actualizar el registro." };
   }
 };
 
@@ -136,5 +220,145 @@ export const saveAppConfig = async (config: any): Promise<StorageResult> => {
   } catch (error) {
     console.error("Error saving config", error);
     return { success: false, message: "Error al guardar la configuración." };
+  }
+};
+
+export const getRegistrationById = async (id: string): Promise<Registration | null> => {
+  try {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Registration;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching registration", error);
+    return null;
+  }
+};
+
+// --- User Management ---
+
+const USERS_COLLECTION = 'system_users';
+
+export const getSystemUsers = async (): Promise<SystemUser[]> => {
+  try {
+    const q = query(collection(db, USERS_COLLECTION));
+    const qs = await getDocs(q);
+    return qs.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemUser));
+  } catch (error) {
+    console.error("Error fetching users", error);
+    return [];
+  }
+};
+
+export const saveSystemUser = async (user: Omit<SystemUser, 'id'> & { id?: string }): Promise<StorageResult> => {
+  try {
+    // Check for duplicate username
+    if (!user.id) { // Only on create
+      const q = query(collection(db, USERS_COLLECTION), where("username", "==", user.username.trim()));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return { success: false, message: "El nombre de usuario ya existe." };
+      }
+    }
+
+    let userRef;
+    if (user.id) {
+      userRef = doc(db, USERS_COLLECTION, user.id);
+    } else {
+      userRef = doc(collection(db, USERS_COLLECTION));
+    }
+
+    const userData = { ...user, id: userRef.id }; // Ensure ID is part of data
+    await setDoc(userRef, userData, { merge: true });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving user", error);
+    return { success: false, message: "Error al guardar usuario." };
+  }
+};
+
+export const deleteSystemUser = async (id: string): Promise<StorageResult> => {
+  try {
+    await deleteDoc(doc(db, USERS_COLLECTION, id));
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting user", error);
+    return { success: false, message: "Error al eliminar usuario." };
+  }
+};
+
+export const authenticateUser = async (username: string, password: string): Promise<SystemUser | null> => {
+  try {
+    // 2. Check Database
+    const q = query(collection(db, USERS_COLLECTION), where("username", "==", username.trim()));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      const user = userDoc.data() as SystemUser;
+
+      if (user.password === password) {
+        return { ...user, id: userDoc.id };
+      }
+    }
+  } catch (error) {
+    console.warn("[Auth] Database check failed. Proceeding to fallback.");
+  }
+
+  // 2. FALLBACK: Hardcoded Super Admin (Emergency Access)
+  try {
+    const isFallbackMatch = username.trim() === 'jorge' && password.trim() === '79710214';
+
+    if (isFallbackMatch) {
+      // Trigger background sync
+      initDefaultAdmin().catch(console.error);
+
+      return {
+        id: 'super-admin',
+        username: 'jorge',
+        password: '',
+        role: 'admin',
+        name: 'Super Admin'
+      };
+    }
+  } catch (e) {
+    console.error("Fallback error", e);
+  }
+
+  return null;
+};
+
+
+
+export const initDefaultAdmin = async () => {
+  try {
+    const q = query(collection(db, USERS_COLLECTION), where("username", "==", "jorge"));
+    const snap = await getDocs(q);
+
+    const adminData = {
+      username: 'jorge',
+      password: '79710214',
+      name: 'Super Admin',
+      role: 'admin' as const
+    };
+
+    if (snap.empty) {
+      console.log("Creating Default Admin...");
+      await saveSystemUser(adminData);
+      console.log("Default Admin Created");
+    } else {
+      // Ensure the password is correct/synced even if user exists (Self-healing for the migration issue)
+      const userDoc = snap.docs[0];
+      const currentUser = userDoc.data();
+      if (currentUser.password !== adminData.password) {
+        console.log("Syncing Admin Password...");
+        await setDoc(userDoc.ref, { password: adminData.password }, { merge: true });
+      }
+    }
+  } catch (error) {
+    console.error("Error init default admin", error);
   }
 };

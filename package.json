@@ -10,8 +10,13 @@
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
+    "@types/qrcode": "^1.5.6",
     "firebase": "^12.6.0",
+    "html5-qrcode": "^2.3.8",
+    "jspdf": "^3.0.4",
     "lucide-react": "^0.556.0",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.5.1",

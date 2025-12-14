@@ -1,23 +1,48 @@
+export interface Child {
+  id: string; // Unique ID for the child
+  fullName: string;
+  age: number;
+  gender: string;
+  inviteNumber: string; // Unique invite per child
+  status: 'pending' | 'delivered';
+  deliveredAt?: string; // ISO string
+}
+
 export interface Registration {
   id: string;
-  fullName: string;
-  inviteNumber: string;
+  parentName: string; // Renamed from fullName for clarity, but mapped for compatibility if needed
   whatsapp: string;
-  childCount: number;
-  genderSelection: string;
   department: string;
   municipality: string;
   district: string;
   addressDetails: string;
-  childAge?: number;
-  ticketDistributor: string; // New field
+  ticketDistributor: string;
+  children: Child[];
   timestamp: string;
+
+  // Legacy/Compatibility fields (optional)
+  fullName?: string; // @deprecated use parentName
+  childCount?: number; // @deprecated derived from children.length
+  whatsappSent?: boolean; // Track if WA message was sent
+  inviteNumber?: string; // @deprecated used for single-child
+  genderSelection?: string; // @deprecated
+  childAge?: number; // @deprecated
 }
 
 export interface StorageResult {
   success: boolean;
   message?: string;
   data?: Registration;
+}
+
+export interface SystemUser {
+  id: string;
+  username: string;
+  password: string; // Plain text per requirements
+  role: 'admin' | 'verifier' | 'whatsapp_sender';
+  name: string;
+  whatsapp?: string;
+  assignedDistributor?: string;
 }
 
 export interface AppConfig {
@@ -65,7 +90,7 @@ export const DEPARTMENTS = [
 
 export const DEFAULT_CONFIG: AppConfig = {
   eventDate: "23 de Diciembre",
-  maxRegistrations: 1000,
+  maxRegistrations: 850,
   isRegistrationOpen: true,
   ticketDistributors: [
     "Adilton Hernandez",

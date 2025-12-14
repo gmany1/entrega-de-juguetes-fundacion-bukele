@@ -1,35 +1,152 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
+import { QRCodeCanvas } from 'qrcode.react';
+import ScanInterface from './ScanInterface';
 import { GoogleGenAI } from "@google/genai";
-import { getRegistrations, deleteRegistration, clearAllRegistrations } from '../services/storageService';
+import { getRegistrations, deleteRegistration, clearAllRegistrations, authenticateUser, getSystemUsers, saveSystemUser, deleteSystemUser, updateRegistration, initDefaultAdmin } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
-import { AppConfig, DEPARTMENTS, Registration } from '../types';
+import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
+import { AppConfig, DEPARTMENTS, Registration, SystemUser, Child } from '../types';
+
+// CRM Edit Modal Component
+const EditRegistrationModal = ({ registration, onClose, onSave }: { registration: Registration, onClose: () => void, onSave: (id: string, data: Partial<Registration>) => Promise<void> }) => {
+    const [formData, setFormData] = useState({ ...registration });
+    const [loading, setLoading] = useState(false);
+
+    const handleSave = async () => {
+        setLoading(true);
+        // Clean children data if needed or just pass as is
+        await onSave(registration.id, formData);
+        setLoading(false);
+        onClose();
+    };
+
+    const updateChild = (idx: number, field: string, value: any) => {
+        const newChildren = [...(formData.children || [])];
+        // Safe check if children exists
+        if (!newChildren[idx]) return;
+
+        (newChildren[idx] as any)[field] = value;
+        setFormData({ ...formData, children: newChildren });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Settings size={18} /> Editar Registro (CRM)
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <InputGroup label="Nombre del Padre/Madre" value={formData.parentName} onChange={v => setFormData({ ...formData, parentName: v })} />
+                        <InputGroup label="WhatsApp" value={formData.whatsapp} onChange={v => setFormData({ ...formData, whatsapp: v })} />
+                        <InputGroup label="Departamento" value={formData.department} onChange={v => setFormData({ ...formData, department: v })} />
+                        <InputGroup label="Municipio" value={formData.municipality} onChange={v => setFormData({ ...formData, municipality: v })} />
+                        <InputGroup label="Distrito" value={formData.district} onChange={v => setFormData({ ...formData, district: v })} />
+                        <div className="md:col-span-2">
+                            <TextAreaGroup label="Detalles de Dirección" value={formData.addressDetails} onChange={v => setFormData({ ...formData, addressDetails: v })} />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Distribuidor Asignado</label>
+                            <input
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50"
+                                value={formData.ticketDistributor}
+                                onChange={e => setFormData({ ...formData, ticketDistributor: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h4 className="font-bold text-slate-700 mb-2 text-sm flex justify-between">
+                            <span>Niños Registrados</span>
+                            <span className="text-xs font-normal text-slate-400">Total: {formData.children?.length || 0}</span>
+                        </h4>
+
+                        {(formData.children || []).map((child, idx) => (
+                            <div key={idx} className="mb-2 p-3 bg-white border border-slate-200 rounded-lg grid grid-cols-1 md:grid-cols-12 gap-3 items-end text-sm shadow-sm">
+                                <div className="md:col-span-4">
+                                    <label className="block text-[10px] text-slate-400 mb-0.5">Nombre Completo</label>
+                                    <input className="w-full border rounded px-2 py-1.5 focus:ring-2 ring-blue-100 outline-none"
+                                        value={child.fullName}
+                                        onChange={e => updateChild(idx, 'fullName', e.target.value)}
+                                        placeholder="Nombre Niño"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] text-slate-400 mb-0.5">Edad</label>
+                                    <input type="number" className="w-full border rounded px-2 py-1.5 focus:ring-2 ring-blue-100 outline-none"
+                                        value={child.age}
+                                        onChange={e => updateChild(idx, 'age', parseInt(e.target.value) || 0)}
+                                        placeholder="Edad"
+                                    />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <label className="block text-[10px] text-slate-400 mb-0.5">Género</label>
+                                    <select className="w-full border rounded px-2 py-1.5 focus:ring-2 ring-blue-100 outline-none bg-white"
+                                        value={child.gender}
+                                        onChange={e => updateChild(idx, 'gender', e.target.value)}
+                                    >
+                                        <option value="Niño">Niño</option>
+                                        <option value="Niña">Niña</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-3 text-right">
+                                    <span className="inline-block bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs font-mono">
+                                        {child.inviteNumber}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                    <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-medium transition-colors">Cancelar</button>
+                    <button onClick={handleSave} disabled={loading} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-colors flex items-center gap-2">
+                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles size={16} />} Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
 
 const AdminPanel: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Auth State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
 
-    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats' | 'scanner' | 'users' | 'wa_list'>('general');
     const { config, updateConfig, resetConfig } = useConfig();
 
-    // Local State for Editing (Draft Mode)
     const [localConfig, setLocalConfig] = useState<AppConfig>(config);
     const [hasChanges, setHasChanges] = useState(false);
+
+    // WA View State
+    const [showPendingOnly, setShowPendingOnly] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setLocalConfig(config);
             setHasChanges(false);
         }
+        // Initialize Admin Security Check
+        initDefaultAdmin();
     }, [isOpen, config]);
 
     const [registrationCount, setRegistrationCount] = useState(0);
@@ -44,6 +161,26 @@ const AdminPanel: React.FC = () => {
         }
     }, [isAuthenticated, isOpen]);
     const [aiSourceImage, setAiSourceImage] = useState<string | null>(null);
+    const [viewingQR, setViewingQR] = useState<{ name: string, data: string, invite: string } | null>(null);
+    const [editingReg, setEditingReg] = useState<Registration | null>(null);
+
+    const loadData = async () => {
+        // SCOPED VIEW: Filter by distributor for Verifiers
+        const distributorFilter = (currentUser?.role === 'verifier' && currentUser?.assignedDistributor)
+            ? currentUser.assignedDistributor
+            : undefined;
+
+        const data = await getRegistrations(distributorFilter);
+        setRegistrationCount(data.length);
+        setRegistrations(data);
+    };
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadData();
+        }
+    }, [isAuthenticated, isOpen]);
+
     const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
@@ -52,28 +189,34 @@ const AdminPanel: React.FC = () => {
     // Statistics Data Processing
     const stats = useMemo(() => {
         // 1. Gender Distribution
-        // Form saves "Niño" or "Niña". Old data might be "niños", "niñas", "ambos".
         const genderData = [
             {
                 name: 'Niños',
                 value: registrations.reduce((acc, r) => {
+                    if (r.children && r.children.length > 0) {
+                        return acc + r.children.filter(c => c.gender === 'Niño').length;
+                    }
+                    // Legacy fallback
                     const g = (r.genderSelection || '').toLowerCase();
-                    // Match 'niño', 'niños', 'nino', etc.
-                    return acc + (g.includes('niño') || g.includes('nino') ? r.childCount : 0);
+                    return acc + (g.includes('niño') || g.includes('nino') ? (r.childCount || 0) : 0);
                 }, 0)
             },
             {
                 name: 'Niñas',
                 value: registrations.reduce((acc, r) => {
+                    if (r.children && r.children.length > 0) {
+                        return acc + r.children.filter(c => c.gender === 'Niña').length;
+                    }
                     const g = (r.genderSelection || '').toLowerCase();
-                    return acc + (g.includes('niña') || g.includes('nina') ? r.childCount : 0);
+                    return acc + (g.includes('niña') || g.includes('nina') ? (r.childCount || 0) : 0);
                 }, 0)
             },
             {
                 name: 'Mixto/Otro',
                 value: registrations.reduce((acc, r) => {
+                    if (r.children && r.children.length > 0) return acc; // Counted in individual buckets
                     const g = (r.genderSelection || '').toLowerCase();
-                    return acc + (g.includes('ambos') || g.includes('mixto') ? r.childCount : 0);
+                    return acc + (g.includes('ambos') || g.includes('mixto') ? (r.childCount || 0) : 0);
                 }, 0)
             }
         ].filter(d => d.value > 0);
@@ -133,7 +276,14 @@ const AdminPanel: React.FC = () => {
         // 5. Age Distribution
         const ageCount: Record<number, number> = {};
         registrations.forEach(r => {
-            if (r.childAge !== undefined && r.childAge !== null) {
+            if (r.children && r.children.length > 0) {
+                r.children.forEach(c => {
+                    if (c.age !== undefined) {
+                        ageCount[c.age] = (ageCount[c.age] || 0) + 1;
+                    }
+                });
+            } else if (r.childAge !== undefined && r.childAge !== null) {
+                // Legacy
                 ageCount[r.childAge] = (ageCount[r.childAge] || 0) + 1;
             }
         });
@@ -147,7 +297,9 @@ const AdminPanel: React.FC = () => {
         const distCount: Record<string, number> = {};
         registrations.forEach(r => {
             const dist = r.ticketDistributor || 'No Asignado';
-            distCount[dist] = (distCount[dist] || 0) + r.childCount;
+            // Count total children
+            const count = (r.children && r.children.length > 0) ? r.children.length : (r.childCount || 0);
+            distCount[dist] = (distCount[dist] || 0) + count;
         });
 
         const distributorData = Object.entries(distCount)
@@ -170,11 +322,23 @@ const AdminPanel: React.FC = () => {
 
 
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (username.trim() === 'jorge' && password.trim() === '79710214') {
+        setLoginError('');
+
+        const user = await authenticateUser(username, password);
+
+        if (user) {
             setIsAuthenticated(true);
-            setLoginError('');
+            setCurrentUser(user);
+            // Redirect based on role
+            if (user.role === 'verifier') {
+                setActiveTab('scanner');
+            } else if (user.role === 'whatsapp_sender') {
+                setActiveTab('wa_list');
+            } else {
+                setActiveTab('general');
+            }
         } else {
             setLoginError('Credenciales incorrectas. Intente nuevamente.');
         }
@@ -327,14 +491,28 @@ const AdminPanel: React.FC = () => {
 
     // Filtered Registrations
     const filteredRegistrations = useMemo(() => {
-        if (!searchTerm) return registrations;
-        const lowerTerm = searchTerm.toLowerCase();
-        return registrations.filter(r =>
-            r.fullName.toLowerCase().includes(lowerTerm) ||
-            r.inviteNumber.toLowerCase().includes(lowerTerm) ||
-            r.whatsapp.includes(searchTerm)
-        );
-    }, [registrations, searchTerm]);
+        let result = registrations;
+
+        // 1. Text Search
+        if (searchTerm) {
+            const lowerInfo = searchTerm.toLowerCase();
+            result = result.filter(reg =>
+                (reg.parentName || reg.fullName || '').toLowerCase().includes(lowerInfo) ||
+                (reg.whatsapp || '').includes(lowerInfo) ||
+                (reg.ticketDistributor || '').toLowerCase().includes(lowerInfo)
+            );
+        }
+
+        // 2. Pending Only Filter (WA View)
+        if (activeTab === 'wa_list' && showPendingOnly) {
+            result = result.filter(r => !r.whatsappSent);
+        }
+
+        // 3. Tab Specific Filters (existing logic)
+        if (activeTab === 'scanner') return result; // Scanner usually clears this anyway or uses its own lookup
+
+        return result;
+    }, [registrations, searchTerm, activeTab, showPendingOnly]);
 
     const groupedRegistrations = useMemo(() => {
         const groups: Record<string, Registration[]> = {};
@@ -421,14 +599,161 @@ const AdminPanel: React.FC = () => {
         }
     };
 
+    const handleWhatsApp = async (reg: Registration) => {
+        // Optimistic Update
+        const updatedRegs = registrations.map(r => r.id === reg.id ? { ...r, whatsappSent: true } : r);
+        setRegistrations(updatedRegs);
+
+        // Background Save
+        updateRegistration(reg.id, { whatsappSent: true }).catch(err => console.error("Error saving WA status", err));
+
+        const name = reg.parentName || reg.fullName || "Beneficiario";
+        let message = `Hola ${name}, aquí tienes tus invitaciones para la entrega de juguetes:\n\n`;
+
+        const baseUrl = window.location.origin;
+
+        if (reg.children && reg.children.length > 0) {
+            reg.children.forEach(child => {
+                const qrLink = `${baseUrl}?view=qr&p=${reg.id}&c=${child.id}&i=${child.inviteNumber}&n=${encodeURIComponent(child.fullName || '')}&a=${child.age}&g=${child.gender}`;
+                message += `🎁 ${child.fullName} (${child.age} años): ${child.inviteNumber}\n🔗 Ver QR Digital: ${qrLink}\n\n`;
+            });
+        } else {
+            // Legacy
+            const qrLink = `${baseUrl}?view=qr&p=${reg.id}&c=legacy&i=${reg.inviteNumber}&n=${encodeURIComponent(reg.fullName || '')}&a=${0}&g=${reg.genderSelection}`;
+            message += `🎫 Invitación: ${reg.inviteNumber}\n🔗 Ver QR Digital: ${qrLink}\n`;
+        }
+
+        message += `\n⚠️ *IMPORTANTE:*\nPresenta el *CÓDIGO QR* (entrando a los enlaces de arriba o en papel) para recibir los juguetes.`;
+
+        // Clean phone number
+        const phone = reg.whatsapp.replace(/[^0-9]/g, '');
+        const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    };
+
+    const handleExportPDF = async (specificRegs?: Registration[], groupName?: string) => {
+        // Handle explicit click event or undefined
+        if (specificRegs && ('bubbles' in specificRegs || 'target' in specificRegs)) {
+            specificRegs = undefined;
+        }
+
+        setIsLoading(true);
+        try {
+            const doc = new jsPDF();
+            let col = 0, row = 0;
+            const cardWidth = 90;
+            const cardHeight = 130;
+            const startX = 15;
+            const startY = 15;
+            let processed = 0;
+
+            // Use provided regs (batch) or all filtered regs (global)
+            const regsToPrint = Array.isArray(specificRegs) ? specificRegs : filteredRegistrations;
+
+            if (regsToPrint.length === 0) {
+                alert("⚠️ No hay datos seleccionados o la tabla está vacía. Verifica que haya registros cargados.");
+                return;
+            }
+
+            for (const reg of regsToPrint) {
+                const children = reg.children && reg.children.length > 0 ? reg.children : [{ fullName: 'Niño', inviteNumber: reg.inviteNumber, id: 'legacy', age: 0, gender: reg.genderSelection } as any];
+
+                for (const child of children) {
+                    // Generate QR
+                    const qrData = JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName });
+                    const qrDataUrl = await QRCode.toDataURL(qrData);
+
+                    // Position
+                    const posX = startX + (col * (cardWidth + 10));
+                    const posY = startY + (row * (cardHeight + 10));
+
+                    // visual card
+                    doc.setDrawColor(200);
+                    doc.rect(posX, posY, cardWidth, cardHeight);
+
+                    // Header
+                    doc.setFillColor(30, 41, 59); // Slate 800
+                    doc.rect(posX, posY, cardWidth, 22, 'F'); // Taller header
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFontSize(9);
+                    doc.text("Compartiendo Sonrisas", posX + cardWidth / 2, posY + 8, { align: 'center' });
+                    doc.setFontSize(8);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Fundación Armando Bukele", posX + cardWidth / 2, posY + 16, { align: 'center' });
+
+                    // Content
+                    doc.setTextColor(0, 0, 0);
+
+                    // Body: Just Gender and Age as requested
+                    doc.setFontSize(16);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(child.gender || "Niño/a", posX + cardWidth / 2, posY + 35, { align: 'center' });
+
+                    // Age
+                    doc.setFontSize(12);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(`${child.age} Años`, posX + cardWidth / 2, posY + 42, { align: 'center' });
+
+                    // Invite Number (Big)
+                    doc.setFontSize(18);
+                    doc.setTextColor(37, 99, 235); // Blue
+                    doc.text(child.inviteNumber || "---", posX + cardWidth / 2, posY + 55, { align: 'center' });
+
+                    // QR Code
+                    doc.addImage(qrDataUrl, 'PNG', posX + (cardWidth - 50) / 2, posY + 60, 50, 50);
+
+                    // Footer
+                    doc.setTextColor(80); // Darker gray
+                    doc.setFontSize(7);
+                    doc.setFont("helvetica", "normal");
+
+                    const parentLabel = reg.parentName || reg.fullName || "Sin Nombre";
+                    doc.text(`Responsable: ${parentLabel}`, posX + cardWidth / 2, posY + 116, { align: 'center', maxWidth: cardWidth - 5 });
+
+                    // Special Credit
+                    doc.setFontSize(6);
+                    doc.setFont("helvetica", "italic");
+                    doc.setTextColor(100);
+                    doc.text("Gracias a la gestión de Verena Flores", posX + cardWidth / 2, posY + 125, { align: 'center' });
+
+                    // Grid Logic
+                    col++;
+                    if (col >= 2) { // 2 columns
+                        col = 0;
+                        row++;
+                    }
+
+                    if (row >= 2) { // 2 rows (4 per page)
+                        doc.addPage();
+                        col = 0;
+                        row = 0;
+                    }
+                    processed++;
+                }
+            }
+
+            const finalFileName = typeof groupName === 'string'
+                ? `invitaciones_${groupName.replace(/\s+/g, '_')}.pdf`
+                : "invitaciones_juguetes.pdf";
+
+            doc.save(finalFileName);
+            alert(`✅ PDF generado con éxito!\n\nSe procesaron ${processed} invitaciones.`);
+
+
+        } catch (e) {
+            console.error(e);
+            alert("Error al generar PDF. Revisa la consola.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleDelete = async (id: string, name: string) => {
         if (confirm(`¿Estás seguro de que quieres eliminar el registro de "${name}"? Esta acción no se puede deshacer.`)) {
             const result = await deleteRegistration(id);
             if (result.success) {
-                // Refresh list
-                const updatedRegs = await getRegistrations();
-                setRegistrations(updatedRegs);
-                setRegistrationCount(updatedRegs.length);
+                // Refresh list using scoped load
+                loadData();
 
                 // Remove from selection if it was selected
                 if (selectedIds.has(id)) {
@@ -441,6 +766,17 @@ const AdminPanel: React.FC = () => {
             }
         }
     };
+
+    const handleUpdateRegistration = async (id: string, data: Partial<Registration>) => {
+        const result = await updateRegistration(id, data);
+        if (result.success) {
+            loadData();
+            alert("Registro actualizado correctamente.");
+        } else {
+            alert(result.message || "Error al actualizar");
+        }
+    };
+
 
     const handleResetDatabase = async () => {
         const confirmation = prompt("⚠️ ZONA DE PELIGRO ⚠️\n\nEstás a punto de ELIMINAR TODOS LOS REGISTROS.\nEsta acción es irreversible.\n\nPara confirmar, escribe la palabra 'BORRAR' en mayúsculas:");
@@ -478,8 +814,8 @@ const AdminPanel: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
                             <Settings className="w-5 h-5" />
-                            <span className="hidden sm:inline">Panel Administrativo</span>
-                            <span className="inline sm:hidden">Admin</span>
+                            <span className="hidden sm:inline">Panel: {currentUser?.role === 'verifier' ? 'Verificador' : 'Administrativo'}</span>
+                            <span className="inline sm:hidden">{currentUser?.role === 'verifier' ? 'Verificador' : 'Admin'}</span>
                         </h2>
                         {hasChanges && (
                             <span className="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
@@ -563,39 +899,64 @@ const AdminPanel: React.FC = () => {
                     <div className="flex flex-col md:flex-row flex-grow overflow-hidden">
 
                         {/* Sidebar Tabs */}
-                        <div className="w-64 bg-slate-100 border-r border-slate-200 overflow-y-auto hidden md:block">
+                        <div className="w-72 bg-slate-100 border-r border-slate-200 overflow-y-auto hidden md:block flex-shrink-0">
                             <div className="p-4 space-y-2">
-                                <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
-                                <TabButton active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Hero & Estilo" />
-                                <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
-                                <TabButton active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="WhatsApp & Ubicación" />
-                                <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Estadísticas" />
-                                <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Base de Datos" />
+                                {currentUser?.role === 'admin' ? (
+                                    <>
+                                        <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
+                                        <TabButton active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Hero & Estilo" />
+                                        <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
+                                        <TabButton active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="WhatsApp & Ubicación" />
+                                        <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos WhatsApp" />
+                                        <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Estadísticas" />
+                                        <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
+                                        <TabButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
+                                        <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Base de Datos" />
+                                    </>
+                                ) : currentUser?.role === 'verifier' ? (
+                                    // Verifier ONLY
+                                    <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear QR" />
+                                ) : (
+                                    // WhatsApp Sender ONLY
+                                    <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<MessageSquare size={18} />} label="Envíos WhatsApp" />
+                                )}
                             </div>
                             <div className="p-4 mt-auto border-t border-slate-200 space-y-2">
+                                <div className="px-4 py-2 text-xs text-slate-500 font-mono">
+                                    {currentUser?.username}
+                                </div>
                                 <button
-                                    onClick={() => setIsAuthenticated(false)}
+                                    onClick={() => { setIsAuthenticated(false); setCurrentUser(null); }}
                                     className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-800 w-full px-4 py-2 hover:bg-slate-200 rounded"
                                 >
                                     <Lock size={14} /> Cerrar Sesión
                                 </button>
-                                <button
-                                    onClick={() => { if (confirm("¿Restaurar toda la configuración de fábrica?")) resetConfig(); }}
-                                    className="flex items-center gap-2 text-xs text-red-600 hover:text-red-800 w-full px-4 py-2 hover:bg-red-50 rounded"
-                                >
-                                    <RotateCcw size={14} /> Restaurar Defaults
-                                </button>
+                                {currentUser?.role === 'admin' && (
+                                    <button
+                                        onClick={() => { if (confirm("¿Restaurar toda la configuración de fábrica?")) resetConfig(); }}
+                                        className="flex items-center gap-2 text-xs text-red-600 hover:text-red-800 w-full px-4 py-2 hover:bg-red-50 rounded"
+                                    >
+                                        <RotateCcw size={14} /> Restaurar Defaults
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         {/* Mobile Tabs (Horizontal) */}
                         <div className="md:hidden w-full overflow-x-auto flex border-b border-slate-200 bg-slate-50 flex-shrink-0 scrollbar-hide">
-                            <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
-                            <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Hero" />
-                            <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Info" />
-                            <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Contacto" />
-                            <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
-                            <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
+                            {currentUser?.role === 'admin' ? (
+                                <>
+                                    <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
+                                    <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
+                                    <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
+                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
+                                    <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
+                                </>
+                            ) : currentUser?.role === 'verifier' ? (
+                                <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
+                            ) : (
+                                <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<MessageSquare size={18} />} label="WhatsApp" />
+                            )}
                         </div>
 
                         {/* Content Area */}
@@ -831,6 +1192,23 @@ const AdminPanel: React.FC = () => {
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                            Distribuidores de Tickets (Separados por coma)
+                                        </label>
+                                        <textarea
+                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 text-sm"
+                                            value={localConfig.ticketDistributors?.join(', ') || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                // Convert string back to array of trimmed strings
+                                                const array = val.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                                                handleInputChange('ticketDistributors', array);
+                                            }}
+                                            placeholder="Ej: Alcaldía San Salvador, Despacho Primera Dama, Ministerio de Cultura..."
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1">Estos son los lugares que aparecerán en el formulario de registro.</p>
                                     </div>
                                 </div>
                             )}
@@ -1125,6 +1503,10 @@ const AdminPanel: React.FC = () => {
                                                             onChange={(e) => setSearchTerm(e.target.value)}
                                                             className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64"
                                                         />
+                                                        <button onClick={handleExportPDF} disabled={isLoading} className="bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm whitespace-nowrap disabled:opacity-50">
+                                                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Download size={16} />}
+                                                            <span className="hidden sm:inline">Exportar PDF</span>
+                                                        </button>
                                                         {selectedIds.size > 0 && (
                                                             <button
                                                                 onClick={handleBulkDelete}
@@ -1179,48 +1561,111 @@ const AdminPanel: React.FC = () => {
                                                                                             {regs.length} Familias
                                                                                         </span>
                                                                                         <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                            {regs.reduce((acc, curr) => acc + curr.childCount, 0)} Juguetes
+                                                                                            {regs.reduce((acc, curr) => acc + (curr.children?.length || curr.childCount || 0), 0)} Juguetes
                                                                                         </span>
+                                                                                        <button
+                                                                                            onClick={(e) => { e.stopPropagation(); handleExportPDF(regs, distributor); }}
+                                                                                            className="bg-white/50 hover:bg-white border border-slate-300 text-slate-700 px-2 py-0.5 rounded text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                                                                                        >
+                                                                                            <Download className="w-3 h-3" /> PDF Lote
+                                                                                        </button>
                                                                                     </div>
                                                                                 </div>
                                                                             </td>
                                                                         </tr>
                                                                         {isExpanded && regs.map((reg) => (
-                                                                            <tr key={reg.id} className={`hover:bg-slate-50 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
-                                                                                <td className="px-6 py-4">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        checked={selectedIds.has(reg.id)}
-                                                                                        onChange={() => handleSelectRow(reg.id)}
-                                                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                                    />
-                                                                                </td>
-                                                                                <td className="px-6 py-4 font-medium text-slate-900">
-                                                                                    {reg.fullName}
-                                                                                </td>
-                                                                                <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                                                <td className="px-6 py-4 text-slate-600 font-mono text-xs">{reg.inviteNumber}</td>
-                                                                                <td className="px-6 py-4">
-                                                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                                        reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                            'bg-purple-100 text-purple-700'
-                                                                                        }`}>
-                                                                                        {reg.childCount} {reg.genderSelection}
-                                                                                    </span>
-                                                                                </td>
-                                                                                <td className="px-6 py-4 text-right">
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            handleDelete(reg.id, reg.fullName);
-                                                                                        }}
-                                                                                        className="text-slate-400 hover:text-red-500 transition-colors p-2"
-                                                                                        title="Eliminar Registro"
-                                                                                    >
-                                                                                        <Trash2 className="w-4 h-4" />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
+                                                                            <React.Fragment key={reg.id}>
+                                                                                <tr className={`hover:bg-slate-50 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
+                                                                                    <td className="px-6 py-4">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            checked={selectedIds.has(reg.id)}
+                                                                                            onChange={() => handleSelectRow(reg.id)}
+                                                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                                        />
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 font-medium text-slate-900">
+                                                                                        {reg.parentName || reg.fullName}
+                                                                                        {/* Show children count badge if not expanded? No, we show children below */}
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 text-slate-600 md:whitespace-nowrap">{reg.whatsapp}</td>
+                                                                                    <td className="px-6 py-4">
+                                                                                        {/* Legacy or Summary of Invites */}
+                                                                                        <div className="text-xs text-slate-500 font-mono">
+                                                                                            {reg.children && reg.children.length > 0 ? (
+                                                                                                <span className="bg-slate-100 px-2 py-1 rounded">{reg.children.length} Tickets</span>
+                                                                                            ) : (
+                                                                                                reg.inviteNumber
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4">
+                                                                                        {reg.children && reg.children.length > 0 ? (
+                                                                                            <div className="space-y-1">
+                                                                                                {reg.children.map((child, idx) => (
+                                                                                                    <div key={idx} className="flex items-center justify-between text-xs bg-white border border-slate-200 p-1.5 rounded gap-2">
+                                                                                                        <div className="flex flex-col">
+                                                                                                            <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
+                                                                                                            <span className="text-[10px] text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</span>
+                                                                                                        </div>
+                                                                                                        <button
+                                                                                                            onClick={() => setViewingQR({
+                                                                                                                name: child.fullName || `Niño #${idx + 1}`,
+                                                                                                                invite: child.inviteNumber,
+                                                                                                                data: JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName })
+                                                                                                            })}
+                                                                                                            className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
+                                                                                                            title="Ver QR"
+                                                                                                        >
+                                                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
+                                                                                                        </button>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            /* Legacy Display */
+                                                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                                reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                                    'bg-purple-100 text-purple-700'
+                                                                                                }`}>
+                                                                                                {reg.childCount} {reg.genderSelection}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleWhatsApp(reg);
+                                                                                            }}
+                                                                                            className="text-slate-400 hover:text-green-500 transition-colors p-2"
+                                                                                            title="Enviar por WhatsApp"
+                                                                                        >
+                                                                                            <MessageSquare className="w-4 h-4" />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                setEditingReg(reg);
+                                                                                            }}
+                                                                                            className="text-slate-400 hover:text-blue-500 transition-colors p-2"
+                                                                                            title="Editar Registro"
+                                                                                        >
+                                                                                            <Pencil className="w-4 h-4" />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleDelete(reg.id, reg.parentName || reg.fullName || 'Desconocido');
+                                                                                            }}
+                                                                                            className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                                                                                            title="Eliminar Registro"
+                                                                                        >
+                                                                                            <Trash2 className="w-4 h-4" />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            </React.Fragment>
                                                                         ))}
                                                                     </React.Fragment>
                                                                 );
@@ -1383,10 +1828,207 @@ const AdminPanel: React.FC = () => {
                                 )
                             }
 
+                            {
+                                activeTab === 'scanner' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="Escáner QR" description="Escanea los códigos de las invitaciones para marcar entregas." />
+                                        <div className="bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm min-h-[400px]">
+                                            <ScanInterface />
+                                        </div>
+                                    </div>
+                                )
+                            }
+
+
+
+                            {
+                                activeTab === 'wa_list' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <div className="flex justify-between items-center">
+                                            <SectionHeader title="Envíos WhatsApp" description="Gestiona los mensajes de confirmación pendientes." />
+                                            <button
+                                                onClick={async () => {
+                                                    const vcfContent = [
+                                                        "BEGIN:VCARD",
+                                                        "VERSION:3.0",
+                                                        "FN:Fundación Bukele",
+                                                        "ORG:Fundación Bukele",
+                                                        "TEL;TYPE=WORK,VOICE:79710214",
+                                                        "EMAIL:contacto@fundacionbukele.org",
+                                                        "END:VCARD"
+                                                    ].join("\n");
+
+                                                    const file = new File([vcfContent], "Contacto_Fundacion.vcf", { type: "text/vcard" });
+
+                                                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                                                        try {
+                                                            await navigator.share({
+                                                                files: [file],
+                                                                title: 'Contacto Fundación Bukele',
+                                                                text: 'Contacto para entregas de juguetes.'
+                                                            });
+                                                        } catch (error) {
+                                                            console.log("Error sharing", error);
+                                                        }
+                                                    } else {
+                                                        // Fallback to download
+                                                        const url = URL.createObjectURL(file);
+                                                        const a = document.createElement("a");
+                                                        a.href = url;
+                                                        a.download = "Contacto_Fundacion.vcf";
+                                                        a.click();
+                                                        URL.revokeObjectURL(url);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors"
+                                            >
+                                                <Share2 className="w-4 h-4" />
+                                                Compartir Contacto
+                                            </button>
+                                        </div>
+
+                                        {/* Stats Cards */}
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                                                <div className="text-3xl font-bold text-slate-800">{registrations.length}</div>
+                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
+                                            </div>
+                                            <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col items-center">
+                                                <div className="text-3xl font-bold text-green-600">{registrations.filter(r => r.whatsappSent).length}</div>
+                                                <div className="text-xs font-bold text-green-600 uppercase tracking-wide">Enviados</div>
+                                            </div>
+                                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col items-center">
+                                                <div className="text-3xl font-bold text-orange-600">{registrations.filter(r => !r.whatsappSent).length}</div>
+                                                <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">Pendientes</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                            <div className="p-4 border-b border-slate-100 flex gap-4 items-center">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar por nombre o teléfono..."
+                                                    value={searchTerm}
+                                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                                                />
+                                                <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={showPendingOnly}
+                                                        onChange={(e) => setShowPendingOnly(e.target.checked)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                    />
+                                                    <span className="text-sm font-medium text-slate-700">Solo Pendientes</span>
+                                                </label>
+                                            </div>
+
+                                            {filteredRegistrations.length === 0 ? (
+                                                <div className="p-8 text-center text-slate-500">No hay registros</div>
+                                            ) : (
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+                                                            <tr>
+                                                                <th className="px-6 py-3">Nombre</th>
+                                                                <th className="px-6 py-3">WhatsApp</th>
+                                                                <th className="px-6 py-3 text-center">Estado</th>
+                                                                <th className="px-6 py-3">Niños</th>
+                                                                <th className="px-6 py-3 text-right">Acción</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {filteredRegistrations.map(reg => (
+                                                                <tr key={reg.id} className="hover:bg-slate-50">
+                                                                    <td className="px-6 py-4 font-medium text-slate-900">
+                                                                        {reg.parentName || reg.fullName}
+                                                                        <div className="text-xs text-slate-500">{reg.ticketDistributor || 'Sin Distribuidor'}</div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        {reg.whatsappSent ? (
+                                                                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
+                                                                                <MessageSquare size={12} className="fill-green-700" /> Enviado
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 px-2 py-1 rounded-full text-xs font-bold">
+                                                                                <Loader2 size={12} /> Pendiente
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className="bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-600">
+                                                                            {reg.children?.length || reg.childCount || 0}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <button
+                                                                                onClick={() => handleWhatsApp(reg)}
+                                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1 ${reg.whatsappSent ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+                                                                            >
+                                                                                <MessageSquare size={14} /> {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            }
+
+                            {
+                                activeTab === 'users' && currentUser?.role === 'admin' && (
+                                    <UsersManagementTab />
+                                )
+                            }
+
                         </div>
                     </div>
                 )}
             </div>
+            {/* QR Code Modal */}
+            {viewingQR && (
+                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full relative flex flex-col items-center">
+                        <button
+                            onClick={() => setViewingQR(null)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <h3 className="text-xl font-bold text-slate-800 mb-1">{viewingQR.name}</h3>
+                        <p className="text-sm text-slate-500 font-mono mb-6">{viewingQR.invite}</p>
+
+                        <div className="bg-white p-4 rounded-xl shadow-inner border border-slate-100">
+                            <QRCodeCanvas
+                                value={viewingQR.data}
+                                size={200}
+                                level={"H"}
+                                includeMargin={true}
+                            />
+                        </div>
+
+                        <p className="text-xs text-slate-400 mt-6 text-center">
+                            Muestra este código al equipo de entrega para recibir el juguete.
+                        </p>
+                    </div>
+                </div>
+            )}
+            {/* Edit Modal (CRM) */}
+            {editingReg && (
+                <EditRegistrationModal
+                    registration={editingReg}
+                    onClose={() => setEditingReg(null)}
+                    onSave={handleUpdateRegistration}
+                />
+            )}
         </div >
     );
 };
@@ -1444,5 +2086,267 @@ const TextAreaGroup = ({ label, value, onChange }: { label: string, value: strin
         />
     </div>
 );
+
+// --- User Management Component ---
+
+const UsersManagementTab = () => {
+    const { config } = useConfig();
+    const [users, setUsers] = useState<SystemUser[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Form State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [formData, setFormData] = useState<Omit<SystemUser, 'id'>>({
+        username: '',
+        password: '',
+        name: '',
+        whatsapp: '',
+        role: 'verifier',
+        assignedDistributor: ''
+    });
+
+    const loadUsers = async () => {
+        setIsLoading(true);
+        const data = await getSystemUsers();
+        setUsers(data);
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
+    const handleEdit = (user: SystemUser) => {
+        setFormData({
+            username: user.username,
+            password: user.password,
+            name: user.name,
+            whatsapp: user.whatsapp || '',
+            role: user.role,
+            assignedDistributor: user.assignedDistributor || ''
+        });
+        setEditingId(user.id);
+        setIsEditing(true);
+    };
+
+    const handleDeleteUser = async (id: string, name: string) => {
+        if (confirm(`¿Eliminar usuario "${name}"?`)) {
+            const res = await deleteSystemUser(id);
+            if (res.success) {
+                loadUsers();
+            } else {
+                alert(res.message);
+            }
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!formData.username || !formData.password || !formData.name) {
+            alert("Todos los campos son obligatorios (excepto Distribuidor/WhatsApp)");
+            return;
+        }
+
+        const payload = {
+            ...formData,
+            id: editingId || undefined
+        };
+
+        const res = await saveSystemUser(payload);
+        if (res.success) {
+            setIsEditing(false);
+            setEditingId(null);
+            setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
+            loadUsers();
+            alert("Usuario guardado correctamente.");
+        } else {
+            alert(res.message || "Error al guardar.");
+        }
+    };
+
+    const resetForm = () => {
+        setIsEditing(false);
+        setEditingId(null);
+        setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
+    };
+
+    const handleSyncDistributors = async () => {
+        if (!confirm("Esto creará cuentas de usuario para todos los distribuidores configurados que aún no tengan cuenta. ¿Proceder?")) return;
+
+        setIsLoading(true);
+        let createdCount = 0;
+
+        // Iterate through configured distributors
+        for (const dist of (config.ticketDistributors || [])) {
+            // Check if user exists for this distributor
+            const exists = users.find(u => u.role === 'verifier' && u.assignedDistributor === dist.name);
+
+            if (!exists) {
+                // Create new user
+                // Generate username: distribuidor.firstname (sanitize)
+                const firstName = dist.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+                const username = `distribuidor.${firstName}`;
+
+                // Generate temp password (or random)
+                const password = "temp12345"; // Default temporary password
+
+                const newUserResult = await saveSystemUser({
+                    username,
+                    password,
+                    name: dist.name,
+                    role: 'verifier',
+                    assignedDistributor: dist.name
+                });
+
+                if (newUserResult.success) createdCount++;
+            }
+        }
+
+        await loadUsers();
+        setIsLoading(false);
+        alert(`Sincronización completada. Se crearon ${createdCount} nuevos usuarios.`);
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in pb-20">
+            <SectionHeader title="Gestión de Usuarios" description="Crea cuentas para Administradores y Verificadores (Distribuidores)." />
+
+            {/* Form */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <User size={18} />
+                    {isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
+                </h4>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <InputGroup label="Nombre (Responsable)" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} />
+                    <InputGroup label="Usuario" value={formData.username} onChange={v => setFormData({ ...formData, username: v })} />
+                    <InputGroup label="Contraseña" value={formData.password} onChange={v => setFormData({ ...formData, password: v })} />
+                    <InputGroup label="WhatsApp (503...)" value={formData.whatsapp || ''} onChange={v => setFormData({ ...formData, whatsapp: v })} />
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
+                        <select
+                            value={formData.role}
+                            onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'verifier' })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        >
+                            <option value="verifier">Verificador</option>
+                            <option value="admin">Administrador</option>
+                            <option value="whatsapp_sender">Enviador WhatsApp</option>
+                        </select>
+                    </div>
+
+                    {(formData.role === 'verifier' || formData.role === 'whatsapp_sender') && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Distribuidor Asociado (Opcional)</label>
+                            <input
+                                type="text"
+                                value={formData.assignedDistributor}
+                                onChange={e => setFormData({ ...formData, assignedDistributor: e.target.value })}
+                                placeholder="Ej: Zona Norte"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            />
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
+                        {isEditing && (
+                            <button type="button" onClick={resetForm} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                Cancelar
+                            </button>
+                        )}
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2">
+                            <Sparkles size={16} />
+                            {isEditing ? 'Actualizar Usuario' : 'Crear Usuario'}
+                        </button>
+                    </div>
+                </form>
+            </div >
+
+            {/* List */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 flex justify-between">
+                    <span>Usuarios del Sistema</span>
+                    <div className="flex gap-2">
+                        <button onClick={handleSyncDistributors} className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded-lg font-medium transition-colors flex items-center gap-1">
+                            <Sparkles size={14} /> Sincronizar Distribuidores
+                        </button>
+                        <button onClick={loadUsers} title="Recargar"><RotateCcw size={16} /></button>
+                    </div>
+                </div>
+
+                {
+                    isLoading ? (
+                        <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" />Cargando...</div>
+                    ) : (
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="px-4 py-3">Nombre</th>
+                                    <th className="px-4 py-3">Usuario</th>
+                                    <th className="px-4 py-3">Rol</th>
+                                    <th className="px-4 py-3">WhatsApp</th>
+                                    <th className="px-4 py-3">Distribuidor</th>
+                                    <th className="px-4 py-3 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {users.map(u => (
+                                    <tr key={u.id} className="hover:bg-slate-50/50">
+                                        <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
+                                        <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
+                                        <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
+                                        <td className="px-4 py-3 flex justify-end gap-2">
+                                            <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
+                                            {u.role !== 'admin' && (
+                                                <button
+                                                    onClick={() => {
+                                                        const appUrl = window.location.origin; // Current URL
+                                                        let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+
+                                                        if (u.role === 'verifier') {
+                                                            message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
+                                                        } else if (u.role === 'whatsapp_sender') {
+                                                            message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
+                                                        }
+
+                                                        // Use stored whatsapp number if available, otherwise open blank for user to choose
+                                                        const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
+                                                        const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+                                                        window.open(url, '_blank');
+                                                    }}
+                                                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                                    title="Enviar Onboarding por WhatsApp"
+                                                >
+                                                    <MessageSquare size={16} />
+                                                </button>
+                                            )}
+                                            {u.username !== 'jorge' && (
+                                                <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {users.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )
+                }
+            </div>
+        </div>
+    );
+};
 
 export default AdminPanel;

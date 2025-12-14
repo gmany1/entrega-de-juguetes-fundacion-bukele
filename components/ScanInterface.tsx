@@ -55,6 +55,11 @@ const ScanInterface: React.FC = () => {
             navigator.vibrate(200);
         }
 
+        // CRITICAL FIX: Stop the scanner BEFORE React removes the div
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch(console.error);
+        }
+
         setScanResult(decodedText);
         setLoading(true);
         setError(null);
@@ -135,8 +140,24 @@ const ScanInterface: React.FC = () => {
         setError(null);
         setSuccessMessage(null);
 
-        // Re-enable scanner if implementation allows, but Html5QrcodeScanner keeps running usually.
-        // If we paused it, we'd resume here.
+        // Re-initialize scanner with a slight delay to allow DOM to render
+        setTimeout(() => {
+            const scannerElement = document.getElementById('reader');
+            if (scannerElement) {
+                const scanner = new Html5QrcodeScanner(
+                    "reader",
+                    {
+                        fps: 10,
+                        qrbox: { width: 300, height: 300 },
+                        aspectRatio: 1.0,
+                        showTorchButtonIfSupported: true
+                    },
+                    false
+                );
+                scanner.render(onScanSuccess, onScanFailure);
+                scannerRef.current = scanner;
+            }
+        }, 100);
     };
 
     return (

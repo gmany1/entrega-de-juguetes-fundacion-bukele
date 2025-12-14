@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5242880, // 5MB to be safe
+        },
         manifest: {
           name: 'Fundación Bukele - Entrega de Juguetes',
           short_name: 'JuguetesFB',

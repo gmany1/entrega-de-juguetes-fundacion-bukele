@@ -98,18 +98,28 @@ const ScanInterface: React.FC = () => {
 
             setParentData(reg);
 
-            if (!reg.children || !Array.isArray(reg.children)) {
-                throw new Error("El registro no contiene datos de niños válidos.");
+            setParentData(reg);
+
+            // Handle legacy records where children array is missing
+            const children = (reg.children && reg.children.length > 0)
+                ? reg.children
+                : [{ fullName: 'Niño', inviteNumber: reg.inviteNumber, id: 'legacy', age: 0, gender: reg.genderSelection } as any];
+
+            // Try to find exact match
+            let foundChild = children.find(c => c.id === childId);
+
+            // Fallback: If ID is 'legacy' or simply doesn't match but there is only 1 child option, assume it.
+            if (!foundChild && children.length === 1) {
+                foundChild = children[0];
             }
 
-            const childIndex = reg.children.findIndex(c => c.id === childId);
-            if (childIndex === -1) {
+            if (!foundChild) {
                 setError("Niño no encontrado en este registro.");
                 setLoading(false);
                 return;
             }
 
-            setChildValues(reg.children[childIndex]);
+            setChildValues(foundChild);
             setLoading(false);
 
         } catch (e: any) {

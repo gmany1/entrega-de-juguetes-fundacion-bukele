@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -185,6 +185,11 @@ const AdminPanel: React.FC = () => {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
     const [aiPrompt, setAiPrompt] = useState('');
+
+    // Distributor CRUD State
+    const [editingDistributorIndex, setEditingDistributorIndex] = useState<number | null>(null);
+    const [tempDistributorName, setTempDistributorName] = useState('');
+    const [newDistributorName, setNewDistributorName] = useState('');
 
     // Statistics Data Processing
     const stats = useMemo(() => {
@@ -1198,21 +1203,131 @@ const AdminPanel: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                                            Distribuidores de Tickets (Separados por coma)
-                                        </label>
-                                        <textarea
-                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 text-sm"
-                                            value={localConfig.ticketDistributors?.join(', ') || ''}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                // Convert string back to array of trimmed strings
-                                                const array = val.split(',').map(s => s.trim()).filter(s => s.length > 0);
-                                                handleInputChange('ticketDistributors', array);
-                                            }}
-                                            placeholder="Ej: Alcaldía San Salvador, Despacho Primera Dama, Ministerio de Cultura..."
-                                        />
-                                        <p className="text-xs text-slate-500 mt-1">Estos son los lugares que aparecerán en el formulario de registro.</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm font-medium text-slate-700">
+                                                Gestión de Distribuidores (CRM)
+                                            </label>
+                                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                                {localConfig.ticketDistributors?.length || 0} Registrados
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                            {/* Add New */}
+                                            <div className="p-3 bg-slate-50 border-b border-slate-200 flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newDistributorName}
+                                                    onChange={(e) => setNewDistributorName(e.target.value)}
+                                                    placeholder="Nombre del nuevo distribuidor..."
+                                                    className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            if (newDistributorName.trim()) {
+                                                                const current = localConfig.ticketDistributors || [];
+                                                                handleInputChange('ticketDistributors', [...current, newDistributorName.trim()]);
+                                                                setNewDistributorName('');
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        if (newDistributorName.trim()) {
+                                                            const current = localConfig.ticketDistributors || [];
+                                                            handleInputChange('ticketDistributors', [...current, newDistributorName.trim()]);
+                                                            setNewDistributorName('');
+                                                        }
+                                                    }}
+                                                    disabled={!newDistributorName.trim()}
+                                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    Agregar
+                                                </button>
+                                            </div>
+
+                                            {/* List */}
+                                            <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                                                {(localConfig.ticketDistributors || []).length === 0 ? (
+                                                    <div className="p-8 text-center text-slate-400 text-sm">
+                                                        No hay distribuidores registrados.
+                                                    </div>
+                                                ) : (
+                                                    (localConfig.ticketDistributors || []).map((dist, idx) => (
+                                                        <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors group">
+                                                            {editingDistributorIndex === idx ? (
+                                                                <div className="flex-1 flex items-center gap-2 mr-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={tempDistributorName}
+                                                                        onChange={(e) => setTempDistributorName(e.target.value)}
+                                                                        className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                        autoFocus
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const updated = [...(localConfig.ticketDistributors || [])];
+                                                                            updated[idx] = tempDistributorName.trim();
+                                                                            handleInputChange('ticketDistributors', updated);
+                                                                            setEditingDistributorIndex(null);
+                                                                        }}
+                                                                        className="text-green-600 hover:bg-green-50 p-1 rounded"
+                                                                        title="Guardar"
+                                                                    >
+                                                                        <Check size={16} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setEditingDistributorIndex(null)}
+                                                                        className="text-red-500 hover:bg-red-50 p-1 rounded"
+                                                                        title="Cancelar"
+                                                                    >
+                                                                        <X size={16} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
+                                                                            {dist.charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                        <span className="text-sm text-slate-700 font-medium">{dist}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setEditingDistributorIndex(idx);
+                                                                                setTempDistributorName(dist);
+                                                                            }}
+                                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                            title="Editar"
+                                                                        >
+                                                                            <Edit2 size={14} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm(`¿Eliminar a "${dist}" de la lista?`)) {
+                                                                                    const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                                                    handleInputChange('ticketDistributors', updated);
+                                                                                }
+                                                                            }}
+                                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                            title="Eliminar"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                            <Info size={12} />
+                                            Gestiona aquí quiénes pueden entregar tickets. Esto no afecta los registros ya existentes.
+                                        </p>
                                     </div>
                                 </div>
                             )}

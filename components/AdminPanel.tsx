@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2 } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -947,6 +947,10 @@ const AdminPanel: React.FC = () => {
                             {currentUser?.role === 'admin' ? (
                                 <>
                                     <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
+                                    <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Estilo" />
+                                    <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
+                                    <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Config WA" />
+                                    <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos" />
                                     <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
                                     <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
                                     <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
@@ -1341,38 +1345,49 @@ const AdminPanel: React.FC = () => {
 
                                             {/* Red Flags Alert Section */}
                                             {stats?.redFlags && stats.redFlags.length > 0 && (
-                                                <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm animate-fade-in">
-                                                    <div className="flex items-start">
-                                                        <div className="flex-shrink-0">
-                                                            <AlertTriangle className="h-6 w-6 text-red-600" />
-                                                        </div>
-                                                        <div className="ml-3 w-full">
-                                                            <h3 className="text-lg font-bold text-red-800">
-                                                                Alerta de Anomalías ({stats.redFlags.length})
-                                                            </h3>
-                                                            <p className="text-sm text-red-700 mt-1">
-                                                                Los siguientes números de teléfono tienen más de 3 niños registrados:
+                                                <div className="mb-6 animate-fade-in">
+                                                    <details className="group bg-red-50 border border-red-200 rounded-lg shadow-sm open:shadow-md transition-all duration-300">
+                                                        <summary className="list-none flex items-center justify-between p-4 cursor-pointer">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="bg-red-100 p-2 rounded-full">
+                                                                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                                                                </div>
+                                                                <div>
+                                                                    <h3 className="text-base font-bold text-red-800">
+                                                                        Alerta de Anomalías
+                                                                    </h3>
+                                                                    <p className="text-xs text-red-600 font-medium">
+                                                                        {stats.redFlags.length} números con exceso de registros
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronDown className="w-5 h-5 text-red-400 transform group-open:rotate-180 transition-transform duration-300" />
+                                                        </summary>
+
+                                                        <div className="px-4 pb-4 border-t border-red-100 mt-2 pt-2">
+                                                            <p className="text-sm text-red-700 mb-3 ml-1">
+                                                                Los siguientes números de teléfono tienen registrados <strong>más de 3 niños</strong>, lo cual es inusual:
                                                             </p>
-                                                            <div className="mt-3 overflow-x-auto">
+                                                            <div className="overflow-x-auto bg-white rounded-lg border border-red-100 shadow-sm">
                                                                 <table className="min-w-full text-sm text-left">
-                                                                    <thead>
-                                                                        <tr className="border-b border-red-200">
-                                                                            <th className="py-2 text-red-900 font-semibold">Teléfono</th>
-                                                                            <th className="py-2 text-red-900 font-semibold text-right">Cantidad de Niños</th>
+                                                                    <thead className="bg-red-50/50">
+                                                                        <tr>
+                                                                            <th className="px-4 py-2 text-red-900 font-bold border-b border-red-100">Teléfono</th>
+                                                                            <th className="px-4 py-2 text-red-900 font-bold text-right border-b border-red-100">Cantidad de Niños</th>
                                                                         </tr>
                                                                     </thead>
-                                                                    <tbody>
+                                                                    <tbody className="divide-y divide-red-50">
                                                                         {stats.redFlags.map((item, idx) => (
-                                                                            <tr key={idx} className="border-b border-red-100 last:border-0 hover:bg-red-100/50 transition-colors">
-                                                                                <td className="py-2 text-red-800 font-mono">{item.phone}</td>
-                                                                                <td className="py-2 text-red-800 font-bold text-right">{item.count}</td>
+                                                                            <tr key={idx} className="hover:bg-red-50/30 transition-colors">
+                                                                                <td className="px-4 py-2 text-slate-700 font-mono">{item.phone}</td>
+                                                                                <td className="px-4 py-2 text-red-600 font-bold text-right">{item.count}</td>
                                                                             </tr>
                                                                         ))}
                                                                     </tbody>
                                                                 </table>
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    </details>
                                                 </div>
                                             )}
 
@@ -1927,7 +1942,8 @@ const AdminPanel: React.FC = () => {
                                                 <div className="p-8 text-center text-slate-500">No hay registros</div>
                                             ) : (
                                                 <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm text-left">
+                                                    {/* Desktop Table */}
+                                                    <table className="w-full text-sm text-left hidden md:table">
                                                         <thead className="text-xs text-slate-500 uppercase bg-slate-50">
                                                             <tr>
                                                                 <th className="px-6 py-3">Nombre</th>
@@ -1965,7 +1981,7 @@ const AdminPanel: React.FC = () => {
                                                                         <div className="flex justify-end gap-2">
                                                                             <button
                                                                                 onClick={() => handleWhatsApp(reg)}
-                                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1 ${reg.whatsappSent ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+                                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1 ${reg.whatsappSent ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-green-500 hover:bg-green-600 text-white'}`}
                                                                             >
                                                                                 <MessageSquare size={14} /> {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
                                                                             </button>
@@ -1975,6 +1991,49 @@ const AdminPanel: React.FC = () => {
                                                             ))}
                                                         </tbody>
                                                     </table>
+
+                                                    {/* Mobile Cards */}
+                                                    <div className="md:hidden divide-y divide-slate-100">
+                                                        {filteredRegistrations.map(reg => (
+                                                            <div key={reg.id} className="p-4 flex flex-col gap-3">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div>
+                                                                        <div className="font-bold text-slate-900">{reg.parentName || reg.fullName}</div>
+                                                                        <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 flex items-center gap-1">
+                                                                                <User size={10} /> {reg.children?.length || reg.childCount || 0} Niños
+                                                                            </span>
+                                                                            {reg.ticketDistributor && (
+                                                                                <span className="text-blue-600 font-medium">@{reg.ticketDistributor}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    {reg.whatsappSent ? (
+                                                                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold border border-green-100">
+                                                                            <Check size={10} /> Enviado
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full text-[10px] font-bold border border-orange-100">
+                                                                            <Clock size={10} /> Pendiente
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="flex items-center justify-between mt-1">
+                                                                    <div className="text-sm text-slate-600 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                                                        {reg.whatsapp}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleWhatsApp(reg)}
+                                                                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2 ${reg.whatsappSent ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-green-500 text-white shadow-green-200'}`}
+                                                                    >
+                                                                        <MessageSquare size={16} />
+                                                                        {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

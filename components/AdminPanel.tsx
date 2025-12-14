@@ -253,14 +253,14 @@ const AdminPanel: React.FC = () => {
 
         const familySizeData = Object.entries(familySizeDist)
             .map(([size, count]) => ({ size: `${size} Niños`, count }))
-            .sort((a, b) => Number(a.size.split(' ')[0]) - Number(b.size.split(' ')[0]));
+            .sort((a, b) => Number((a.size || '').split(' ')[0]) - Number((b.size || '').split(' ')[0]));
 
         // 4. Registration Timeline (Sorted Chronologically)
         const timelineMap: Record<string, { count: number, label: string }> = {};
 
         registrations.forEach(r => {
             const d = new Date(r.timestamp);
-            const key = d.toISOString().split('T')[0]; // Sortable Key: 2023-12-24
+            const key = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : 'Invalid Date'; // Sortable Key: 2023-12-24
             const label = d.toLocaleDateString('es-SV', { month: 'short', day: 'numeric' }); // Display: 24 dic
 
             if (!timelineMap[key]) {
@@ -2245,7 +2245,7 @@ const UsersManagementTab = () => {
             if (!exists) {
                 // Create new user
                 // Generate username: distribuidor.firstname (sanitize)
-                const firstName = dist.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+                const firstName = (dist.name || '').split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
                 const username = `distribuidor.${firstName}`;
 
                 // Generate temp password (or random)

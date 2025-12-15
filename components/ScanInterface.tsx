@@ -111,7 +111,13 @@ const ScanInterface: React.FC = () => {
             // Normalize children for legacy support
             const children = (localParent.children && localParent.children.length > 0)
                 ? localParent.children
-                : [{ fullName: 'Niño Legacy', inviteNumber: localParent.inviteNumber || '???', id: 'legacy', age: localParent.childAge || 0, gender: localParent.genderSelection || 'N/A' } as any];
+                : [{
+                    fullName: `${localParent.genderSelection || 'Niño/a'} ${localParent.childAge ? `(${localParent.childAge} años)` : ''} (Registro Digital)`,
+                    inviteNumber: localParent.inviteNumber || '???',
+                    id: 'legacy',
+                    age: localParent.childAge || 0,
+                    gender: localParent.genderSelection || 'N/A'
+                } as any];
 
             // Resolve Child
             // 1. Try ID match

@@ -11,6 +11,8 @@ const QRDisplay = () => {
     const age = params.get('a');
     const gender = params.get('g');
 
+    const isLegacy = params.get('l') === '1' || childId === 'legacy';
+
     if (!parentId || !childId) return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-xl shadow text-center text-slate-500">
@@ -19,7 +21,7 @@ const QRDisplay = () => {
         </div>
     );
 
-    const qrData = JSON.stringify({ parentId, childId, invite, name });
+    const qrData = JSON.stringify({ parentId, childId, invite, name, isLegacy: isLegacy ? true : undefined });
 
     return (
         <div className="min-h-screen bg-red-600 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -37,7 +39,7 @@ const QRDisplay = () => {
                 <div className="mb-6 mt-4">
                     <span className="text-3xl">🎄</span>
                     <h1 className="text-2xl font-black text-red-600 uppercase tracking-wide">Entrega de Juguetes</h1>
-                    <h2 className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Fundación Armando Bukele</h2>
+                    <h2 className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Gracias a Lorena Romero y Fundación Armando Bukele</h2>
                 </div>
 
                 <div className="bg-white p-3 rounded-xl border-2 border-dashed border-red-200 shadow-inner inline-block mb-6 relative">
@@ -50,12 +52,25 @@ const QRDisplay = () => {
                     />
                 </div>
 
+                {isLegacy && (
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Responsable</p>
+                )}
                 <h3 className="text-2xl font-black text-slate-800 mb-1 leading-tight">{name}</h3>
-                <p className="text-slate-600 mb-4 font-medium flex items-center justify-center gap-2">
-                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{age} Años</span>
-                    <span className="text-slate-400">•</span>
-                    <span className="uppercase text-sm font-bold text-slate-500">{gender}</span>
-                </p>
+
+                {isLegacy ? (
+                    <p className="text-slate-600 mb-4 font-medium flex flex-col items-center justify-center gap-1 mt-2">
+                        <span className="text-xs uppercase tracking-widest text-slate-400">Entrega para:</span>
+                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-bold">
+                            {age} Años • {gender}
+                        </span>
+                    </p>
+                ) : (
+                    <p className="text-slate-600 mb-4 font-medium flex items-center justify-center gap-2">
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">{age} Años</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="uppercase text-sm font-bold text-slate-500">{gender}</span>
+                    </p>
+                )}
 
                 <div className="bg-blue-50 text-blue-700 px-6 py-4 rounded-xl font-mono font-black text-3xl mb-4 border-2 border-blue-100 tracking-wider shadow-sm">
                     {invite}

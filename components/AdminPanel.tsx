@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -10,6 +10,344 @@ import { useConfig } from '../contexts/ConfigContext';
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import { AppConfig, DEPARTMENTS, Registration, SystemUser, Child } from '../types';
+
+export interface TicketDistributor {
+    name: string;
+    phone?: string;
+    startRange?: number;
+    endRange?: number;
+}
+
+
+
+
+
+const TabButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
+    <button
+        onClick={onClick}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'
+            }`}
+    >
+        {icon}
+        {label}
+    </button>
+);
+
+const TabButtonMobile = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
+    <button
+        onClick={onClick}
+        className={`flex-1 flex flex-col items-center justify-center p-3 border-b-2 transition-colors min-w-[70px] ${active ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500'
+            }`}
+    >
+        {icon}
+        <span className="text-[10px] font-medium mt-1">{label}</span>
+    </button>
+);
+
+const SectionHeader = ({ title, description }: { title: string, description: string }) => (
+    <div className="mb-2">
+        <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+        <p className="text-sm text-slate-500">{description}</p>
+    </div>
+);
+
+const InputGroup = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => (
+    <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+        />
+    </div>
+);
+
+const TextAreaGroup = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => (
+    <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+        />
+    </div>
+);
+
+// --- User Management Component ---
+
+const UsersManagementTab = () => {
+    const { config } = useConfig();
+    const [users, setUsers] = useState<SystemUser[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Form State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [formData, setFormData] = useState<Omit<SystemUser, 'id'>>({
+        username: '',
+        password: '',
+        name: '',
+        whatsapp: '',
+        role: 'verifier',
+        assignedDistributor: ''
+    });
+
+    const loadUsers = async () => {
+        setIsLoading(true);
+        const data = await getSystemUsers();
+        setUsers(data);
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
+    const handleEdit = (user: SystemUser) => {
+        setFormData({
+            username: user.username,
+            password: user.password,
+            name: user.name,
+            whatsapp: user.whatsapp || '',
+            role: user.role,
+            assignedDistributor: user.assignedDistributor || ''
+        });
+        setEditingId(user.id);
+        setIsEditing(true);
+    };
+
+    const handleDeleteUser = async (id: string, name: string) => {
+        if (confirm(`¿Eliminar usuario "${name}"?`)) {
+            const res = await deleteSystemUser(id);
+            if (res.success) {
+                loadUsers();
+            } else {
+                alert(res.message);
+            }
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!formData.username || !formData.password || !formData.name) {
+            alert("Todos los campos son obligatorios (excepto Distribuidor/WhatsApp)");
+            return;
+        }
+
+        const payload = {
+            ...formData,
+            id: editingId || undefined
+        };
+
+        const res = await saveSystemUser(payload);
+        if (res.success) {
+            setIsEditing(false);
+            setEditingId(null);
+            setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
+            loadUsers();
+            alert("Usuario guardado correctamente.");
+        } else {
+            alert(res.message || "Error al guardar.");
+        }
+    };
+
+    const resetForm = () => {
+        setIsEditing(false);
+        setEditingId(null);
+        setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
+    };
+
+    const handleSyncDistributors = async () => {
+        if (!confirm("Esto creará cuentas de usuario para todos los distribuidores configurados que aún no tengan cuenta. ¿Proceder?")) return;
+
+        setIsLoading(true);
+        let createdCount = 0;
+
+        // Iterate through configured distributors
+        for (const dist of (config.ticketDistributors || [])) {
+            // Check if user exists for this distributor
+            const exists = users.find(u => u.role === 'verifier' && u.assignedDistributor === dist.name);
+
+            if (!exists) {
+                // Create new user
+                // Generate username: distribuidor.firstname (sanitize)
+                const firstName = (dist.name || '').split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+                const username = `distribuidor.${firstName}`;
+                const password = "Navidad2025"; // Generic generic password for all
+
+                // Generate WhatsApp Onboarding Link
+                // Template: Hola [Nombre], tu usuario es [User] y contraseña [Pass]. Ingresa aquí: [Link]
+                const appUrl = window.location.origin + "/admin";
+                const message = `Hola *${dist.name}*! 👋\n\nTe hemos creado una cuenta para verificar entregas de juguetes.\n\n👤 Usuario: *${username}*\n🔑 Contraseña: *${password}*\n\nIngresa aquí para gestionar tus entregas:\n${appUrl}`;
+                const whatsappLink = `https://wa.me/${dist.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+
+                const newUserResult = await saveSystemUser({
+                    username,
+                    password,
+                    name: dist.name,
+                    role: 'verifier',
+                    assignedDistributor: dist.name,
+                    whatsapp: dist.phone // Use phone from CRM
+                });
+
+                if (newUserResult.success) {
+                    createdCount++;
+                    // Ideally we could open the WA link here, but we are in a loop. 
+                    // We might just want to store it or log it. 
+                    // For now, let's just count it. The user has to manually send it or we build a "Send Invites" feature.
+                    // But the user asked for "template with onboarding", so saving it to the user record might be useful?
+                    // The current SystemUser interface doesn't store the welcome link, but we can assume standard template.
+                }
+            }
+        }
+
+        await loadUsers();
+        setIsLoading(false);
+        alert(`Sincronización completada. Se crearon ${createdCount} nuevos usuarios.\n\nContraseña genérica: Navidad2025`);
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in pb-20">
+            <SectionHeader title="Gestión de Usuarios" description="Crea cuentas para Administradores y Verificadores (Distribuidores)." />
+
+            {/* Form */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <User size={18} />
+                    {isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
+                </h4>
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <InputGroup label="Nombre (Responsable)" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} />
+                    <InputGroup label="Usuario" value={formData.username} onChange={v => setFormData({ ...formData, username: v })} />
+                    <InputGroup label="Contraseña" value={formData.password} onChange={v => setFormData({ ...formData, password: v })} />
+                    <InputGroup label="WhatsApp (503...)" value={formData.whatsapp || ''} onChange={v => setFormData({ ...formData, whatsapp: v })} />
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
+                        <select
+                            value={formData.role}
+                            onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'verifier' })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        >
+                            <option value="verifier">Verificador</option>
+                            <option value="admin">Administrador</option>
+                            <option value="whatsapp_sender">Enviador WhatsApp</option>
+                        </select>
+                    </div>
+
+                    {(formData.role === 'verifier' || formData.role === 'whatsapp_sender') && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Distribuidor Asociado (Opcional)</label>
+                            <input
+                                type="text"
+                                value={formData.assignedDistributor}
+                                onChange={e => setFormData({ ...formData, assignedDistributor: e.target.value })}
+                                placeholder="Ej: Zona Norte"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            />
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
+                        {isEditing && (
+                            <button type="button" onClick={resetForm} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                Cancelar
+                            </button>
+                        )}
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2">
+                            <Sparkles size={16} />
+                            {isEditing ? 'Actualizar Usuario' : 'Crear Usuario'}
+                        </button>
+                    </div>
+                </form>
+            </div >
+
+            {/* List */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 flex justify-between">
+                    <span>Usuarios del Sistema</span>
+                    <div className="flex gap-2">
+                        <button onClick={handleSyncDistributors} className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded-lg font-medium transition-colors flex items-center gap-1">
+                            <Sparkles size={14} /> Sincronizar Distribuidores
+                        </button>
+                        <button onClick={loadUsers} title="Recargar"><RotateCcw size={16} /></button>
+                    </div>
+                </div>
+
+                {
+                    isLoading ? (
+                        <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" />Cargando...</div>
+                    ) : (
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <th className="px-4 py-3">Nombre</th>
+                                    <th className="px-4 py-3">Usuario</th>
+                                    <th className="px-4 py-3">Rol</th>
+                                    <th className="px-4 py-3">WhatsApp</th>
+                                    <th className="px-4 py-3">Distribuidor</th>
+                                    <th className="px-4 py-3 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {users.map(u => (
+                                    <tr key={u.id} className="hover:bg-slate-50/50">
+                                        <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
+                                        <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
+                                        <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
+                                        <td className="px-4 py-3 flex justify-end gap-2">
+                                            <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
+                                            {u.role !== 'admin' && (
+                                                <button
+                                                    onClick={() => {
+                                                        const appUrl = window.location.origin; // Current URL
+                                                        let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+
+                                                        if (u.role === 'verifier') {
+                                                            message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
+                                                        } else if (u.role === 'whatsapp_sender') {
+                                                            message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
+                                                        }
+
+                                                        // Use stored whatsapp number if available, otherwise open blank for user to choose
+                                                        const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
+                                                        const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+                                                        window.open(url, '_blank');
+                                                    }}
+                                                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                                    title="Enviar Onboarding por WhatsApp"
+                                                >
+                                                    <MessageSquare size={16} />
+                                                </button>
+                                            )}
+                                            {u.username !== 'jorge' && (
+                                                <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {users.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )
+                }
+            </div>
+        </div>
+    );
+};
 
 // CRM Edit Modal Component
 const EditRegistrationModal = ({ registration, onClose, onSave }: { registration: Registration, onClose: () => void, onSave: (id: string, data: Partial<Registration>) => Promise<void> }) => {
@@ -117,8 +455,6 @@ const EditRegistrationModal = ({ registration, onClose, onSave }: { registration
         </div>
     );
 };
-
-
 
 const AdminPanel: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -497,12 +833,197 @@ const AdminPanel: React.FC = () => {
         }
     };
 
+
+
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    // Normalization Logic: Group Legacy Records by WhatsApp
+    const normalizedRegistrations = useMemo(() => {
+        const legacyGroups: Record<string, Registration[]> = {}; // Key: whatsapp
+        const modernRecords: Registration[] = [];
 
-    // Filtered Registrations
+        registrations.forEach(reg => {
+            if (reg.children && reg.children.length > 0) {
+                modernRecords.push(reg);
+            } else {
+                // Legacy Record
+                // Sanitize WhatsApp for grouping (remove spaces, dashes, etc.)
+                const rawWa = reg.whatsapp || '';
+                const key = rawWa.replace(/\D/g, '') || 'unknown';
+
+                if (!legacyGroups[key]) legacyGroups[key] = [];
+                legacyGroups[key].push(reg);
+            }
+        });
+
+        const groupedLegacy: Registration[] = Object.entries(legacyGroups).map(([wa, group]) => {
+            const first = group[0];
+            return {
+                ...first,
+                id: `legacy_group_${wa}`, // Virtual ID
+                children: group.map(g => ({
+                    id: g.id,
+                    // Use updated fields or fallback to legacy top-level fields
+                    inviteNumber: g.inviteNumber || '???',
+                    fullName: g.fullName || 'Niño (Legacy)',
+                    age: g.childAge || 0,
+                    gender: g.genderSelection || 'N/A',
+                    status: 'pending' as const // Default status for legacy unless we check 'delivered' status in storage which we don't have for legacy directly without deeper check
+                })),
+                childCount: group.length,
+                // Use the most recent timestamp in the group? Or oldest?
+                timestamp: group.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp
+            };
+        });
+
+        return [...modernRecords, ...groupedLegacy].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [registrations]);
+
+    // Distributor Control Logic
+    const distributorAudit = useMemo(() => {
+        if (!config.ticketDistributors) return [];
+
+        return config.ticketDistributors.map(dist => {
+            const start = dist.startRange || 0;
+            const end = dist.endRange || 0;
+            const totalAssigned = (start > 0 && end > 0) ? (end - start + 1) : 0;
+
+            // Find all tickets registered for this distributor
+            // Using NORMALIZED data to catch everything
+            const relevantRegs = normalizedRegistrations.filter(r => r.ticketDistributor === dist.name);
+
+            const registeredTicketNumbers = new Set<number>();
+            relevantRegs.forEach(r => {
+                r.children.forEach(c => {
+                    const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
+                    if (!isNaN(num)) registeredTicketNumbers.add(num);
+                });
+            });
+
+            const missingTickets: number[] = [];
+            if (totalAssigned > 0) {
+                for (let i = start; i <= end; i++) {
+                    if (!registeredTicketNumbers.has(i)) {
+                        missingTickets.push(i);
+                    }
+                }
+            }
+
+            return {
+                name: dist.name,
+                range: `${start} - ${end}`,
+                assignedCount: totalAssigned,
+                registeredCount: registeredTicketNumbers.size, // Only count those strictly in range? Or all attributed to him?
+                // Let's count all attributed to him for "Registered", but "Missing" is strictly from range.
+                // Actually, "registeredCount" usually means "how many of his range are taken".
+                // But wait, if he registered ticket #999 (out of range), it should be flagged elsewhere.
+                // For this view "Control", let's stick to Range Audit.
+                inRangeCount: Array.from(registeredTicketNumbers).filter(n => n >= start && n <= end).length,
+                missingTickets
+            };
+        });
+    }, [config.ticketDistributors, normalizedRegistrations]);
+
+    // PDF Control List for Distributor
+    const handleDownloadDistributorControl = (distributor: TicketDistributor) => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // 1. Filter Data
+        const relevantChildren: { invite: string, name: string, age: number, gender: string, parent: string }[] = [];
+        normalizedRegistrations.forEach(reg => {
+            if (reg.ticketDistributor === distributor.name) {
+                reg.children.forEach(child => {
+                    relevantChildren.push({
+                        invite: child.inviteNumber,
+                        name: child.fullName,
+                        age: child.age || 0,
+                        gender: child.gender,
+                        parent: reg.parentName || reg.fullName || 'N/A'
+                    });
+                });
+            }
+        });
+
+        // 2. Sort by Ticket Number
+        relevantChildren.sort((a, b) => {
+            const numA = parseInt(a.invite.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.invite.replace(/\D/g, '')) || 0;
+            return numA - numB;
+        });
+
+        // 3. Header
+        doc.setFontSize(18);
+        doc.text("Control de Entrega - Distribuidor", pageWidth / 2, 15, { align: "center" });
+
+        doc.setFontSize(14);
+        doc.setTextColor(100);
+        doc.text(distributor.name, pageWidth / 2, 22, { align: "center" });
+
+        if (distributor.startRange && distributor.endRange) {
+            doc.setFontSize(10);
+            doc.text(`Rango Asignado: #${distributor.startRange} - #${distributor.endRange}`, pageWidth / 2, 28, { align: "center" });
+        }
+
+        doc.text(`Total Asignados: ${relevantChildren.length}`, pageWidth / 2, 33, { align: "center" });
+
+        // 4. Table Header
+        let y = 40;
+        const colX = { ticket: 14, name: 40, age: 100, parent: 120, check: 180 };
+
+        doc.setFillColor(240, 240, 240);
+        doc.rect(10, y - 5, pageWidth - 20, 8, 'F');
+        doc.setFontSize(9);
+        doc.setTextColor(0);
+        doc.setFont("helvetica", "bold");
+
+        doc.text("Ticket", colX.ticket, y);
+        doc.text("Niño/a", colX.name, y);
+        doc.text("Edad", colX.age, y);
+        doc.text("Responsable", colX.parent, y);
+        doc.text("Firma", colX.check, y);
+
+        y += 8;
+
+        // 5. Table Rows
+        doc.setFont("helvetica", "normal");
+        relevantChildren.forEach((child, index) => {
+            if (y > 280) {
+                doc.addPage();
+                y = 20;
+            }
+
+            // Zebra striping
+            if (index % 2 === 1) {
+                doc.setFillColor(250, 250, 250);
+                doc.rect(10, y - 4, pageWidth - 20, 7, 'F');
+            }
+
+            doc.text(child.invite, colX.ticket, y);
+
+            // Truncate names if too long
+            const childName = child.name.length > 35 ? child.name.substring(0, 32) + '...' : child.name;
+            doc.text(childName, colX.name, y);
+
+            doc.text(`${child.age} ${child.gender === 'Niña' ? 'A' : 'O'}`, colX.age, y);
+
+            const parentName = child.parent.length > 30 ? child.parent.substring(0, 27) + '...' : child.parent;
+            doc.text(parentName, colX.parent, y);
+
+            // Draw checkbox/line for signature
+            doc.setLineWidth(0.1);
+            doc.line(colX.check, y, colX.check + 20, y);
+
+            y += 7;
+        });
+
+        doc.save(`Control_${distributor.name.replace(/\s+/g, '_')}.pdf`);
+    };
+
+
+    // Filtered Registrations (use Normalized now)
     const filteredRegistrations = useMemo(() => {
-        let result = registrations;
+        let result = normalizedRegistrations; // USE NORMALIZED HERE
 
         // 1. Text Search
         if (searchTerm) {
@@ -515,6 +1036,7 @@ const AdminPanel: React.FC = () => {
                 (reg.children || []).some(child => (child.inviteNumber || '').toLowerCase().includes(lowerInfo))
             );
         }
+
 
         // 2. Pending Only Filter (WA View)
         if (activeTab === 'wa_list' && showPendingOnly) {
@@ -626,8 +1148,16 @@ const AdminPanel: React.FC = () => {
         const baseUrl = window.location.origin;
 
         if (reg.children && reg.children.length > 0) {
+            // Check if this is a legacy group to pass the flag
+            const isLegacyGroup = reg.id.startsWith('legacy_group_');
+
             reg.children.forEach(child => {
-                const qrLink = `${baseUrl}?view=qr&p=${reg.id}&c=${child.id}&i=${child.inviteNumber}&n=${encodeURIComponent(child.fullName || '')}&a=${child.age}&g=${child.gender}`;
+                let qrLink = `${baseUrl}?view=qr&p=${reg.id}&c=${child.id}&i=${child.inviteNumber}&n=${encodeURIComponent(child.fullName || '')}&a=${child.age}&g=${child.gender}`;
+                if (isLegacyGroup) {
+                    qrLink += '&l=1';
+                }
+
+                // Construct message for each child
                 message += `🎁 ${child.fullName} (${child.age} años): ${child.inviteNumber}\n🔗 Ver QR Digital: ${qrLink}\n\n`;
             });
         } else {
@@ -729,7 +1259,7 @@ const AdminPanel: React.FC = () => {
                 doc.text("Compartiendo Sonrisas", posX + cardWidth / 2, posY + 15, { align: 'center' });
                 doc.setFontSize(9);
                 doc.setFont("helvetica", "bold");
-                doc.text("Fundación Armando Bukele", posX + cardWidth / 2, posY + 22, { align: 'center' });
+                doc.text("Gracias a Lorena Romero y Fundación Armando Bukele", posX + cardWidth / 2, posY + 22, { align: 'center' });
 
                 // Divider
                 doc.setDrawColor(230);
@@ -1010,6 +1540,8 @@ const AdminPanel: React.FC = () => {
                                     <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
                                     <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
                                     <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
+                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
+                                    <TabButtonMobile active={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={<ShieldCheck size={18} />} label="Control" />
                                     <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
                                 </>
                             ) : currentUser?.role === 'verifier' ? (
@@ -1227,6 +1759,8 @@ const AdminPanel: React.FC = () => {
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
+
+
                                                                         ) : (
                                                                             <>
                                                                                 <div className="flex items-center gap-3">
@@ -1249,6 +1783,13 @@ const AdminPanel: React.FC = () => {
                                                                                     </div>
                                                                                 </div>
                                                                                 <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <button
+                                                                                        onClick={() => handleDownloadDistributorControl(dist)}
+                                                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                                        title="Descargar Lista de Control"
+                                                                                    >
+                                                                                        <Download size={14} />
+                                                                                    </button>
                                                                                     <button
                                                                                         onClick={() => {
                                                                                             setEditingDistributorIndex(idx);
@@ -2271,376 +2812,53 @@ const AdminPanel: React.FC = () => {
                             }
 
                         </div>
+                        {/* QR Code Modal */}
+                        {
+                            viewingQR && (
+                                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                                    <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full relative flex flex-col items-center">
+                                        <button
+                                            onClick={() => setViewingQR(null)}
+                                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                                        >
+                                            <X size={24} />
+                                        </button>
+
+                                        <h3 className="text-xl font-bold text-slate-800 mb-1">{viewingQR.name}</h3>
+                                        <p className="text-sm text-slate-500 font-mono mb-6">{viewingQR.invite}</p>
+
+                                        <div className="bg-white p-4 rounded-xl shadow-inner border border-slate-100">
+                                            <QRCodeCanvas
+                                                value={viewingQR.data}
+                                                size={200}
+                                                level={"H"}
+                                                includeMargin={true}
+                                            />
+                                        </div>
+
+                                        <p className="text-xs text-slate-400 mt-6 text-center">
+                                            Muestra este código al equipo de entrega para recibir el juguete.
+                                        </p>
+                                    </div>
+                                </div>
+                            )
+                        }
+                        {/* Edit Modal (CRM) */}
+                        {
+                            editingReg && (
+                                <EditRegistrationModal
+                                    registration={editingReg}
+                                    onClose={() => setEditingReg(null)}
+                                    onSave={handleUpdateRegistration}
+                                />
+                            )
+                        }
                     </div>
                 )}
-            </div>
-            {/* QR Code Modal */}
-            {viewingQR && (
-                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full relative flex flex-col items-center">
-                        <button
-                            onClick={() => setViewingQR(null)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-                        >
-                            <X size={24} />
-                        </button>
-
-                        <h3 className="text-xl font-bold text-slate-800 mb-1">{viewingQR.name}</h3>
-                        <p className="text-sm text-slate-500 font-mono mb-6">{viewingQR.invite}</p>
-
-                        <div className="bg-white p-4 rounded-xl shadow-inner border border-slate-100">
-                            <QRCodeCanvas
-                                value={viewingQR.data}
-                                size={200}
-                                level={"H"}
-                                includeMargin={true}
-                            />
-                        </div>
-
-                        <p className="text-xs text-slate-400 mt-6 text-center">
-                            Muestra este código al equipo de entrega para recibir el juguete.
-                        </p>
-                    </div>
-                </div>
-            )}
-            {/* Edit Modal (CRM) */}
-            {editingReg && (
-                <EditRegistrationModal
-                    registration={editingReg}
-                    onClose={() => setEditingReg(null)}
-                    onSave={handleUpdateRegistration}
-                />
-            )}
-        </div >
-    );
-};
-
-// UI Helpers
-const TabButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
-    <button
-        onClick={onClick}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'
-            }`}
-    >
-        {icon}
-        {label}
-    </button>
-);
-
-const TabButtonMobile = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
-    <button
-        onClick={onClick}
-        className={`flex-1 flex flex-col items-center justify-center p-3 border-b-2 transition-colors min-w-[70px] ${active ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500'
-            }`}
-    >
-        {icon}
-        <span className="text-[10px] font-medium mt-1">{label}</span>
-    </button>
-);
-
-const SectionHeader = ({ title, description }: { title: string, description: string }) => (
-    <div className="mb-2">
-        <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-        <p className="text-sm text-slate-500">{description}</p>
-    </div>
-);
-
-const InputGroup = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => (
-    <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-        <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-    </div>
-);
-
-const TextAreaGroup = ({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) => (
-    <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-        <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-    </div>
-);
-
-// --- User Management Component ---
-
-const UsersManagementTab = () => {
-    const { config } = useConfig();
-    const [users, setUsers] = useState<SystemUser[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    // Form State
-    const [isEditing, setIsEditing] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [formData, setFormData] = useState<Omit<SystemUser, 'id'>>({
-        username: '',
-        password: '',
-        name: '',
-        whatsapp: '',
-        role: 'verifier',
-        assignedDistributor: ''
-    });
-
-    const loadUsers = async () => {
-        setIsLoading(true);
-        const data = await getSystemUsers();
-        setUsers(data);
-        setIsLoading(false);
-    };
-
-    useEffect(() => {
-        loadUsers();
-    }, []);
-
-    const handleEdit = (user: SystemUser) => {
-        setFormData({
-            username: user.username,
-            password: user.password,
-            name: user.name,
-            whatsapp: user.whatsapp || '',
-            role: user.role,
-            assignedDistributor: user.assignedDistributor || ''
-        });
-        setEditingId(user.id);
-        setIsEditing(true);
-    };
-
-    const handleDeleteUser = async (id: string, name: string) => {
-        if (confirm(`¿Eliminar usuario "${name}"?`)) {
-            const res = await deleteSystemUser(id);
-            if (res.success) {
-                loadUsers();
-            } else {
-                alert(res.message);
-            }
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!formData.username || !formData.password || !formData.name) {
-            alert("Todos los campos son obligatorios (excepto Distribuidor/WhatsApp)");
-            return;
-        }
-
-        const payload = {
-            ...formData,
-            id: editingId || undefined
-        };
-
-        const res = await saveSystemUser(payload);
-        if (res.success) {
-            setIsEditing(false);
-            setEditingId(null);
-            setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
-            loadUsers();
-            alert("Usuario guardado correctamente.");
-        } else {
-            alert(res.message || "Error al guardar.");
-        }
-    };
-
-    const resetForm = () => {
-        setIsEditing(false);
-        setEditingId(null);
-        setFormData({ username: '', password: '', name: '', whatsapp: '', role: 'verifier', assignedDistributor: '' });
-    };
-
-    const handleSyncDistributors = async () => {
-        if (!confirm("Esto creará cuentas de usuario para todos los distribuidores configurados que aún no tengan cuenta. ¿Proceder?")) return;
-
-        setIsLoading(true);
-        let createdCount = 0;
-
-        // Iterate through configured distributors
-        for (const dist of (config.ticketDistributors || [])) {
-            // Check if user exists for this distributor
-            const exists = users.find(u => u.role === 'verifier' && u.assignedDistributor === dist.name);
-
-            if (!exists) {
-                // Create new user
-                // Generate username: distribuidor.firstname (sanitize)
-                const firstName = (dist.name || '').split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-                const username = `distribuidor.${firstName}`;
-                const password = "Navidad2025"; // Generic generic password for all
-
-                // Generate WhatsApp Onboarding Link
-                // Template: Hola [Nombre], tu usuario es [User] y contraseña [Pass]. Ingresa aquí: [Link]
-                const appUrl = window.location.origin + "/admin";
-                const message = `Hola *${dist.name}*! 👋\n\nTe hemos creado una cuenta para verificar entregas de juguetes.\n\n👤 Usuario: *${username}*\n🔑 Contraseña: *${password}*\n\nIngresa aquí para gestionar tus entregas:\n${appUrl}`;
-                const whatsappLink = `https://wa.me/${dist.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-
-                const newUserResult = await saveSystemUser({
-                    username,
-                    password,
-                    name: dist.name,
-                    role: 'verifier',
-                    assignedDistributor: dist.name,
-                    whatsapp: dist.phone // Use phone from CRM
-                });
-
-                if (newUserResult.success) {
-                    createdCount++;
-                    // Ideally we could open the WA link here, but we are in a loop. 
-                    // We might just want to store it or log it. 
-                    // For now, let's just count it. The user has to manually send it or we build a "Send Invites" feature.
-                    // But the user asked for "template with onboarding", so saving it to the user record might be useful?
-                    // The current SystemUser interface doesn't store the welcome link, but we can assume standard template.
-                }
-            }
-        }
-
-        await loadUsers();
-        setIsLoading(false);
-        alert(`Sincronización completada. Se crearon ${createdCount} nuevos usuarios.\n\nContraseña genérica: Navidad2025`);
-    };
-
-    return (
-        <div className="space-y-6 animate-fade-in pb-20">
-            <SectionHeader title="Gestión de Usuarios" description="Crea cuentas para Administradores y Verificadores (Distribuidores)." />
-
-            {/* Form */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <User size={18} />
-                    {isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
-                </h4>
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                    <InputGroup label="Nombre (Responsable)" value={formData.name} onChange={v => setFormData({ ...formData, name: v })} />
-                    <InputGroup label="Usuario" value={formData.username} onChange={v => setFormData({ ...formData, username: v })} />
-                    <InputGroup label="Contraseña" value={formData.password} onChange={v => setFormData({ ...formData, password: v })} />
-                    <InputGroup label="WhatsApp (503...)" value={formData.whatsapp || ''} onChange={v => setFormData({ ...formData, whatsapp: v })} />
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
-                        <select
-                            value={formData.role}
-                            onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'verifier' })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                        >
-                            <option value="verifier">Verificador</option>
-                            <option value="admin">Administrador</option>
-                            <option value="whatsapp_sender">Enviador WhatsApp</option>
-                        </select>
-                    </div>
-
-                    {(formData.role === 'verifier' || formData.role === 'whatsapp_sender') && (
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Distribuidor Asociado (Opcional)</label>
-                            <input
-                                type="text"
-                                value={formData.assignedDistributor}
-                                onChange={e => setFormData({ ...formData, assignedDistributor: e.target.value })}
-                                placeholder="Ej: Zona Norte"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                            />
-                        </div>
-                    )}
-
-                    <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
-                        {isEditing && (
-                            <button type="button" onClick={resetForm} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
-                                Cancelar
-                            </button>
-                        )}
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2">
-                            <Sparkles size={16} />
-                            {isEditing ? 'Actualizar Usuario' : 'Crear Usuario'}
-                        </button>
-                    </div>
-                </form>
-            </div >
-
-            {/* List */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 flex justify-between">
-                    <span>Usuarios del Sistema</span>
-                    <div className="flex gap-2">
-                        <button onClick={handleSyncDistributors} className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded-lg font-medium transition-colors flex items-center gap-1">
-                            <Sparkles size={14} /> Sincronizar Distribuidores
-                        </button>
-                        <button onClick={loadUsers} title="Recargar"><RotateCcw size={16} /></button>
-                    </div>
-                </div>
-
-                {
-                    isLoading ? (
-                        <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" />Cargando...</div>
-                    ) : (
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-medium">
-                                <tr>
-                                    <th className="px-4 py-3">Nombre</th>
-                                    <th className="px-4 py-3">Usuario</th>
-                                    <th className="px-4 py-3">Rol</th>
-                                    <th className="px-4 py-3">WhatsApp</th>
-                                    <th className="px-4 py-3">Distribuidor</th>
-                                    <th className="px-4 py-3 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {users.map(u => (
-                                    <tr key={u.id} className="hover:bg-slate-50/50">
-                                        <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
-                                        <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
-                                        <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
-                                        <td className="px-4 py-3 flex justify-end gap-2">
-                                            <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
-                                            {u.role !== 'admin' && (
-                                                <button
-                                                    onClick={() => {
-                                                        const appUrl = window.location.origin; // Current URL
-                                                        let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
-
-                                                        if (u.role === 'verifier') {
-                                                            message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
-                                                        } else if (u.role === 'whatsapp_sender') {
-                                                            message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
-                                                        }
-
-                                                        // Use stored whatsapp number if available, otherwise open blank for user to choose
-                                                        const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
-                                                        const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
-                                                        window.open(url, '_blank');
-                                                    }}
-                                                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                                                    title="Enviar Onboarding por WhatsApp"
-                                                >
-                                                    <MessageSquare size={16} />
-                                                </button>
-                                            )}
-                                            {u.username !== 'jorge' && (
-                                                <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {users.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    )
-                }
             </div>
         </div>
     );
 };
+
 
 export default AdminPanel;

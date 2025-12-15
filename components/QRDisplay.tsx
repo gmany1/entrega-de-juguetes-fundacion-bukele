@@ -21,7 +21,14 @@ const QRDisplay = () => {
         </div>
     );
 
-    const qrData = JSON.stringify({ parentId, childId, invite, name, isLegacy: isLegacy ? true : undefined });
+    // Standardized minimal QR payload
+    const qrData = JSON.stringify({
+        parentId,
+        childId,
+        invite
+    });
+
+    const displayName = name || "Sin Nombre";
 
     return (
         <div className="min-h-screen bg-red-600 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -55,7 +62,7 @@ const QRDisplay = () => {
                 {isLegacy && (
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Responsable</p>
                 )}
-                <h3 className="text-2xl font-black text-slate-800 mb-1 leading-tight">{name}</h3>
+                <h3 className="text-2xl font-black text-slate-800 mb-1 leading-tight">{displayName}</h3>
 
                 {isLegacy ? (
                     <p className="text-slate-600 mb-4 font-medium flex flex-col items-center justify-center gap-1 mt-2">

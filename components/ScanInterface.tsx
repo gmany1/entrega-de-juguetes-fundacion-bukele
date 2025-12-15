@@ -276,7 +276,7 @@ const ScanInterface: React.FC = () => {
                             <div>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Niño/a</p>
                                 <div className="font-bold text-slate-700 leading-tight">
-                                    {childValues.fullName}
+                                    {childValues.fullName || "Sin Nombre"}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">{childValues.age} Años • {childValues.gender}</div>
                             </div>

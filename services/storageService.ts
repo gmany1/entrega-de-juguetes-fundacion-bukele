@@ -1,6 +1,6 @@
 import { db } from './firebaseConfig';
 import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch, setDoc, getDoc, runTransaction } from 'firebase/firestore';
-import { Registration, StorageResult, SystemUser } from '../types';
+import { Registration, StorageResult, SystemUser, TicketDistributor } from '../types';
 
 const COLLECTION_NAME = 'registrations';
 
@@ -376,5 +376,49 @@ export const initDefaultAdmin = async () => {
     }
   } catch (error) {
     console.error("Error init default admin", error);
+  }
+};
+
+// --- Distributor Management ---
+
+export const getDistributors = async (): Promise<TicketDistributor[]> => {
+  try {
+    const q = query(collection(db, 'distributors'), orderBy('name'));
+    const qs = await getDocs(q);
+    return qs.docs.map(doc => ({ id: doc.id, ...doc.data() } as TicketDistributor));
+  } catch (error) {
+    console.error("Error fetching distributors", error);
+    return [];
+  }
+};
+
+export const saveDistributor = async (distributor: TicketDistributor): Promise<StorageResult> => {
+  try {
+    const data = { ...distributor };
+    delete data.id; // Don't save ID inside the document if it's already the doc ID, but here we can just spread. 
+    // Actually standard practice is to separate doc ID from data.
+
+    let ref;
+    if (distributor.id) {
+      ref = doc(db, 'distributors', distributor.id);
+    } else {
+      ref = doc(collection(db, 'distributors'));
+    }
+
+    await setDoc(ref, { ...data, name: data.name.trim() }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving distributor", error);
+    return { success: false, message: "Error al guardar distribuidor." };
+  }
+};
+
+export const deleteDistributor = async (id: string): Promise<StorageResult> => {
+  try {
+    await deleteDoc(doc(db, 'distributors', id));
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting distributor", error);
+    return { success: false, message: "Error al eliminar distribuidor." };
   }
 };

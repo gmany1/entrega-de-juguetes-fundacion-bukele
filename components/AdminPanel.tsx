@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
 import ScanInterface from './ScanInterface';
 import { GoogleGenAI } from "@google/genai";
-import { getRegistrations, deleteRegistration, clearAllRegistrations, authenticateUser, getSystemUsers, saveSystemUser, deleteSystemUser, updateRegistration, initDefaultAdmin } from '../services/storageService';
+import { getRegistrations, deleteRegistration, clearAllRegistrations, authenticateUser, getSystemUsers, saveSystemUser, deleteSystemUser, updateRegistration, initDefaultAdmin, saveDistributor, deleteDistributor } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
@@ -1831,19 +1831,23 @@ const AdminPanel: React.FC = () => {
                                                         />
                                                         <div className="flex-grow"></div>
                                                         <button
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 if (newDistributorName.trim()) {
-                                                                    const current = localConfig.ticketDistributors || [];
-                                                                    handleInputChange('ticketDistributors', [...current, {
+                                                                    setIsLoading(true);
+                                                                    const res = await saveDistributor({
                                                                         name: newDistributorName.trim(),
                                                                         phone: newDistributorPhone.trim(),
                                                                         startRange: newDistributorStart,
                                                                         endRange: newDistributorEnd
-                                                                    }]);
-                                                                    setNewDistributorName('');
-                                                                    setNewDistributorPhone('');
-                                                                    setNewDistributorStart(0);
-                                                                    setNewDistributorEnd(0);
+                                                                    });
+
+                                                                    if (res.success) {
+                                                                        // Force refresh
+                                                                        window.location.reload();
+                                                                    } else {
+                                                                        alert("Error: " + res.message);
+                                                                    }
+                                                                    setIsLoading(false);
                                                                 }
                                                             }}
                                                             disabled={!newDistributorName.trim()}
@@ -1907,16 +1911,17 @@ const AdminPanel: React.FC = () => {
                                                                                     <div className="flex-grow"></div>
                                                                                     <div className="flex gap-1">
                                                                                         <button
-                                                                                            onClick={() => {
-                                                                                                const updated = [...(localConfig.ticketDistributors || [])];
-                                                                                                updated[idx] = {
+                                                                                            onClick={async () => {
+                                                                                                setIsLoading(true);
+                                                                                                await saveDistributor({
+                                                                                                    id: dist.id,
                                                                                                     name: tempDistributorName.trim(),
                                                                                                     phone: tempDistributorPhone.trim(),
                                                                                                     startRange: tempDistributorStart,
                                                                                                     endRange: tempDistributorEnd
-                                                                                                };
-                                                                                                handleInputChange('ticketDistributors', updated);
+                                                                                                });
                                                                                                 setEditingDistributorIndex(null);
+                                                                                                window.location.reload();
                                                                                             }}
                                                                                             className="text-green-600 hover:bg-green-50 p-1 rounded"
                                                                                             title="Guardar"
@@ -1978,10 +1983,15 @@ const AdminPanel: React.FC = () => {
                                                                                         <Edit2 size={14} />
                                                                                     </button>
                                                                                     <button
-                                                                                        onClick={() => {
+                                                                                        onClick={async () => {
                                                                                             if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
-                                                                                                const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
-                                                                                                handleInputChange('ticketDistributors', updated);
+                                                                                                if (dist.id) {
+                                                                                                    await deleteDistributor(dist.id);
+                                                                                                    window.location.reload();
+                                                                                                } else {
+                                                                                                    const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                                                                    handleInputChange('ticketDistributors', updated);
+                                                                                                }
                                                                                             }
                                                                                         }}
                                                                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -3030,7 +3040,7 @@ const AdminPanel: React.FC = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

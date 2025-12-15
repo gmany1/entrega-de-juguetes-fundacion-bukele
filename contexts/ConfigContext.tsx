@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppConfig, DEFAULT_CONFIG } from '../types';
-import { getAppConfig, saveAppConfig } from '../services/storageService';
+import { getAppConfig, saveAppConfig, getDistributors } from '../services/storageService';
 
 interface ConfigContextType {
   config: AppConfig;
@@ -30,9 +30,15 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // 2. Firebase (Source of Truth)
     const fetchRemoteConfig = async () => {
       const remoteConfig = await getAppConfig();
-      if (remoteConfig) {
+      const distributors = await getDistributors();
+
+      if (remoteConfig || distributors.length > 0) {
         setConfig(prev => {
-          const merged = { ...prev, ...remoteConfig };
+          const merged = {
+            ...prev,
+            ...(remoteConfig || {}),
+            ticketDistributors: distributors.length > 0 ? distributors : prev.ticketDistributors
+          };
           // Update local cache too
           localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(merged));
           return merged;

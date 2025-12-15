@@ -216,7 +216,7 @@ const QRScanner: React.FC = () => {
                     <div className="p-6 space-y-4">
                         {/* Child Details */}
                         <div className="space-y-1 text-center border-b border-slate-100 pb-4">
-                            <h3 className="text-2xl font-bold text-slate-800">{scannedChild.fullName}</h3>
+                            <h3 className="text-2xl font-bold text-slate-800">{scannedChild.fullName || "Sin Nombre"}</h3>
                             <p className="text-slate-500">{scannedChild.age} años • {scannedChild.gender}</p>
                             <div className="inline-block bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-mono mt-2">
                                 Ticket: {scannedChild.inviteNumber}

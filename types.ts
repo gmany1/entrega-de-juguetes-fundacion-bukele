@@ -45,12 +45,20 @@ export interface SystemUser {
   assignedDistributor?: string;
 }
 
+export interface TicketDistributor {
+  id?: string;
+  name: string;
+  phone?: string;
+  startRange?: number;
+  endRange?: number;
+}
+
 export interface AppConfig {
   // General
   eventDate: string;
   maxRegistrations: number;
   isRegistrationOpen: boolean;
-  ticketDistributors: { name: string; phone: string; startRange?: number; endRange?: number; }[]; // List of available distributors
+  ticketDistributors: TicketDistributor[]; // List of available distributors
 
   // Hero
   heroTitle: string;

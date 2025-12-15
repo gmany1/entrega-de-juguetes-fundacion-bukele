@@ -129,10 +129,12 @@ const RegistrationForm: React.FC = () => {
 
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
+      /* Name is now optional - we default to handle empty strings later
       if (!child.name.trim()) {
         setError(`Escribe el nombre del niño/a #${i + 1}.`);
         return false;
       }
+      */
       if (!child.inviteNumber.trim()) {
         setError(`El número de invitación es obligatorio para el niño #${i + 1}.`);
         return false;
@@ -203,9 +205,9 @@ const RegistrationForm: React.FC = () => {
         municipality: formData.municipality,
         district: formData.district,
         addressDetails: formData.addressDetails,
-        children: children.map(c => ({
+        children: children.map((c, index) => ({
           id: c.id,
-          fullName: c.name,
+          fullName: c.name || `Menor ${index + 1}`,
           age: parseInt(c.age, 10),
           gender: c.gender,
           inviteNumber: c.inviteNumber,
@@ -312,7 +314,8 @@ const RegistrationForm: React.FC = () => {
                       <QRCodeCanvas
                         value={JSON.stringify({
                           parentId: submittedData.parentId,
-                          childId: child.id
+                          childId: child.id,
+                          invite: child.inviteNumber
                         })}
                         size={80}
                         level={"M"}
@@ -323,7 +326,7 @@ const RegistrationForm: React.FC = () => {
                     </div>
                     <div className="flex-grow min-w-0">
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ticket #{child.inviteNumber}</div>
-                      <div className="font-bold text-slate-800 text-lg leading-tight truncate">{child.name}</div>
+                      <div className="font-bold text-slate-800 text-lg leading-tight truncate">{child.name || "Sin Nombre"}</div>
                       <div className="text-sm text-slate-500 mt-1">{child.age} Años • {child.gender}</div>
                     </div>
                   </div>
@@ -479,7 +482,7 @@ const RegistrationForm: React.FC = () => {
               {children.map((child, index) => (
                 <div key={child.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200 relative">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Nombre del Niño/a #{index + 1}</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Nombre del Niño/a #{index + 1} (Opcional)</label>
                     <input
                       type="text"
                       value={child.name}

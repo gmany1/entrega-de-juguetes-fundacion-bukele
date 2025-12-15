@@ -127,12 +127,28 @@ export const updateChildStatus = async (registrationId: string, childId: string,
     if (!regSnap.exists()) return { success: false, message: "Registro no encontrado" };
 
     const data = regSnap.data() as Registration;
-    const updatedChildren = data.children.map(child => {
-      if (child.id === childId) {
-        return { ...child, status, deliveredAt };
-      }
-      return child;
-    });
+    let updatedChildren;
+
+    if (data.children && Array.isArray(data.children)) {
+      updatedChildren = data.children.map(child => {
+        if (child.id === childId) {
+          return { ...child, status, deliveredAt };
+        }
+        return child;
+      });
+    } else {
+      // Handle Legacy Record Migration (Create children array from root fields)
+      // Check if we are targeting the legacy child (id 'legacy')
+      updatedChildren = [{
+        id: 'legacy',
+        name: data.fullName || 'Beneficiario',
+        inviteNumber: data.inviteNumber || '???',
+        age: String(data.childAge || 0),
+        gender: data.genderSelection || 'N/A',
+        status: status,
+        deliveredAt: deliveredAt
+      }];
+    }
 
     await setDoc(regRef, { children: updatedChildren }, { merge: true });
     return { success: true };

@@ -81,8 +81,14 @@ const ScanInterface: React.FC = () => {
     };
 
     const verifyTicket = (parentId: string, childId: string) => {
+        // FIX: Handle Legacy Groups (Virtual IDs) by looking up the real child record
+        let searchId = parentId;
+        if (parentId && parentId.startsWith('legacy_group_')) {
+            searchId = childId;
+        }
+
         // 1. Check Local Whitelist FIRST (Fast & Offline)
-        const localParent = whitelist.find(p => p.id === parentId);
+        const localParent = whitelist.find(p => p.id === searchId);
 
         if (localParent) {
             setParentData(localParent);

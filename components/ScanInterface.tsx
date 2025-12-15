@@ -67,7 +67,7 @@ const ScanInterface: React.FC = () => {
                 throw new Error("Formato QR incorrecto.");
             }
 
-            verifyTicket(data.parentId, data.childId);
+            verifyTicket(data);
 
         } catch (e) {
             console.error(e);
@@ -80,38 +80,57 @@ const ScanInterface: React.FC = () => {
         // console.warn(`Code scan error = ${error}`);
     };
 
-    const verifyTicket = (parentId: string, childId: string) => {
-        // FIX: Handle Legacy Groups (Virtual IDs) by looking up the real child record
-        let searchId = parentId;
-        if (parentId && parentId.startsWith('legacy_group_')) {
-            searchId = childId;
+    const verifyTicket = (qrData: any) => {
+        const { parentId, childId, invite } = qrData;
+
+        let localParent: Registration | undefined;
+        let foundChild: Child | undefined;
+
+        // STRATEGY 1: Direct ID Match (Fastest)
+        localParent = whitelist.find(p => p.id === parentId);
+
+        // STRATEGY 2: Legacy Group ID Fix (Virtual to Real ID)
+        if (!localParent && parentId && parentId.startsWith('legacy_group_')) {
+            localParent = whitelist.find(p => p.id === childId);
         }
 
-        // 1. Check Local Whitelist FIRST (Fast & Offline)
-        const localParent = whitelist.find(p => p.id === searchId);
+        // STRATEGY 3: Invite Number Lookup (Fallback for Broken IDs)
+        if (!localParent && invite) {
+            // Check Root Level (Legacy)
+            localParent = whitelist.find(p => p.inviteNumber === invite);
+
+            // Check Children Level (Modern)
+            if (!localParent) {
+                localParent = whitelist.find(p => p.children?.some(c => c.inviteNumber === invite));
+            }
+        }
 
         if (localParent) {
             setParentData(localParent);
 
-            // Handle legacy records where children array might be missing/empty in older logic
-            // But our whitelist download should utilize the 'getRegistrations' which handles normalization?
-            // Actually, storageService 'getRegistrations' returns raw data. We might need to ensure normalization there or here.
-            // For now, assuming standard structure or basic legacy fallback.
-
+            // Normalize children for legacy support
             const children = (localParent.children && localParent.children.length > 0)
                 ? localParent.children
                 : [{ fullName: 'Niño Legacy', inviteNumber: localParent.inviteNumber || '???', id: 'legacy', age: localParent.childAge || 0, gender: localParent.genderSelection || 'N/A' } as any];
 
-            let foundChild = children.find(c => c.id === childId);
+            // Resolve Child
+            // 1. Try ID match
+            foundChild = children.find(c => c.id === childId);
 
-            // Legacy fallback ID match
+            // 2. Try Invite match (if we found parent via invite, ensure we grab the right child)
+            if (!foundChild && invite) {
+                foundChild = children.find(c => c.inviteNumber === invite);
+            }
+
+            // 3. Fallback for single-child/legacy
             if (!foundChild && (childId === 'legacy' || children.length === 1)) {
                 foundChild = children[0];
             }
 
             if (foundChild) {
                 // Check if locally pending
-                const isPendingInQueue = queue.some(q => q.parentId === parentId && q.childId === foundChild!.id);
+                // Use localParent.id (Real ID) for queue check to ensure consistency
+                const isPendingInQueue = queue.some(q => q.parentId === localParent!.id && q.childId === foundChild!.id);
                 if (isPendingInQueue) {
                     foundChild = { ...foundChild, status: 'delivered' };
                 }

@@ -1174,158 +1174,331 @@ const AdminPanel: React.FC = () => {
         window.open(url, '_blank');
     };
 
-    const handleExportPDF = async (specificRegs?: Registration[], groupName?: string) => {
+    const handleExportPDF = async (target?: Registration[] | TicketDistributor, groupName?: string) => {
         // Handle explicit click event or undefined
-        if (specificRegs && ('bubbles' in specificRegs || 'target' in specificRegs)) {
-            specificRegs = undefined;
+        if (target && ('bubbles' in target || 'target' in target)) {
+            target = undefined;
         }
 
         setIsLoading(true);
         try {
             const doc = new jsPDF();
-            let col = 0, row = 0;
-            const cardWidth = 90;
-            const cardHeight = 130;
-            const startX = 15;
-            const startY = 15;
-            let processed = 0;
 
-            // Use provided regs (batch) or all filtered regs (global)
-            const regsToPrint = Array.isArray(specificRegs) ? specificRegs : filteredRegistrations;
+            // Check if we are printing a Distributor Control List
+            // We assume it's a distributor if it has 'startRange' and is not an array
+            const isDistributorReport = target && !Array.isArray(target) && 'startRange' in target;
 
-            if (regsToPrint.length === 0) {
-                alert("⚠️ No hay datos seleccionados o la tabla está vacía. Verifica que haya registros cargados.");
-                return;
-            }
+            if (isDistributorReport) {
+                const dist = target as TicketDistributor;
+                const start = dist.startRange || 0;
+                const end = dist.endRange || 0;
+                const rangeCount = end - start + 1;
 
-            // 1. Flatten all tickets (children) from the registrations
-            interface PrintableTicket {
-                id: string;
-                inviteNumber: string;
-                gender: string;
-                age: number;
-                parentName: string;
-                originalReg: Registration;
-            }
+                // --- HEADER ---
+                doc.setFontSize(16);
+                doc.setFont("helvetica", "bold");
+                doc.text(`Control de Distribución - ${dist.name}`, 15, 20);
 
-            const allTickets: PrintableTicket[] = [];
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Rango: ${start} - ${end} | Total: ${rangeCount} Tickets`, 15, 28);
+                doc.text(`Generado: ${new Date().toLocaleString()}`, 15, 33);
 
-            regsToPrint.forEach(reg => {
-                const children = (reg.children && reg.children.length > 0)
-                    ? reg.children
-                    : [{
-                        id: 'legacy',
-                        inviteNumber: reg.inviteNumber || '???',
-                        gender: reg.genderSelection || '?',
-                        age: reg.childAge || 0,
-                        fullName: 'Niño'
-                    } as any];
+                // --- TABLE HEADER ---
+                let y = 45;
+                const headers = ["Ticket", "Estado", "Beneficiario", "Edad/Sex", "Responsable", "Teléfono"];
+                const colWidths = [20, 25, 50, 20, 45, 25];
+                let x = 15;
 
-                children.forEach(child => {
-                    allTickets.push({
-                        id: child.id,
-                        inviteNumber: child.inviteNumber || '',
-                        gender: child.gender || 'Niño/a',
-                        age: child.age !== undefined ? child.age : 0,
-                        parentName: reg.parentName || reg.fullName || "Sin Nombre",
-                        originalReg: reg
+                doc.setFillColor(240);
+                doc.rect(15, 38, 185, 8, "F");
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(9);
+                headers.forEach((h, i) => {
+                    doc.text(h, x, 43);
+                    x += colWidths[i];
+                });
+
+                // --- DATA PREP ---
+                // Map all registrations by Invite Number for fast lookup
+                const regMap = new Map<number, { child: any, reg: Registration }>();
+                const phoneCounts = new Map<string, number>();
+
+                registrations.forEach(r => {
+                    // Count phones
+                    if (r.whatsapp) {
+                        const cleanPhone = r.whatsapp.replace(/\D/g, '');
+                        phoneCounts.set(cleanPhone, (phoneCounts.get(cleanPhone) || 0) + 1);
+                    }
+
+                    if (r.children && r.children.length > 0) {
+                        r.children.forEach(c => {
+                            if (c.inviteNumber) {
+                                // Normalize invite number (NIxxxx -> number)
+                                const match = c.inviteNumber.match(/\d+/);
+                                if (match) {
+                                    const num = parseInt(match[0], 10);
+                                    regMap.set(num, { child: c, reg: r });
+                                }
+                            }
+                        });
+                    } else {
+                        // Legacy fallback
+                        if (r.inviteNumber) {
+                            const match = r.inviteNumber.match(/\d+/);
+                            if (match) {
+                                const num = parseInt(match[0], 10);
+                                regMap.set(num, { child: r, reg: r }); // Treat reg as child for legacy
+                            }
+                        }
+                    }
+                });
+
+                // --- ROWS ---
+                doc.setFont("helvetica", "normal");
+
+                let missingCount = 0;
+                let registeredCount = 0;
+
+                for (let i = start; i <= end; i++) {
+                    if (y > 275) {
+                        doc.addPage();
+                        y = 20;
+                        // Reprint Header
+                        doc.setFont("helvetica", "bold");
+                        let hx = 15;
+                        headers.forEach((h, idx) => {
+                            doc.text(h, hx, y);
+                            hx += colWidths[idx];
+                        });
+                        y += 10;
+                        doc.setFont("helvetica", "normal");
+                    }
+
+                    const match = regMap.get(i);
+                    const ticketStr = `NI${i.toString().padStart(4, '0')}`;
+
+                    let xPos = 15;
+                    doc.setFontSize(8);
+
+                    // 1. Ticket Number
+                    doc.setTextColor(0);
+                    doc.text(ticketStr, xPos, y);
+                    xPos += colWidths[0];
+
+                    if (match) {
+                        registeredCount++;
+                        const { child, reg } = match;
+                        const phone = (reg.whatsapp || '').replace(/\D/g, '');
+                        const isMultiReg = (phoneCounts.get(phone) || 0) > 3;
+
+                        // 2. Status
+                        doc.setTextColor(0, 128, 0); // Green
+                        doc.text("REGISTRADO", xPos, y);
+                        xPos += colWidths[1];
+
+                        // 3. Name
+                        doc.setTextColor(0);
+                        const name = (child.fullName || "Sin Nombre").substring(0, 30);
+                        doc.text(name, xPos, y);
+                        xPos += colWidths[2];
+
+                        // 4. Age/Sex
+                        const age = child.age !== undefined ? child.age : (child.childAge || '?');
+                        const sex = child.gender ? child.gender.charAt(0) : (child.genderSelection ? child.genderSelection.charAt(0) : '?');
+                        doc.text(`${age} / ${sex}`, xPos, y);
+                        xPos += colWidths[3];
+
+                        // 5. Responsible
+                        const resp = (reg.parentName || reg.fullName || "").substring(0, 25);
+                        doc.text(resp, xPos, y);
+                        xPos += colWidths[4];
+
+                        // 6. Phone
+                        if (isMultiReg) {
+                            doc.setTextColor(220, 38, 38); // Red
+                            doc.setFont("helvetica", "bold");
+                        } else {
+                            doc.setTextColor(0);
+                            doc.setFont("helvetica", "normal");
+                        }
+                        doc.text(reg.whatsapp || "", xPos, y);
+
+                    } else {
+                        missingCount++;
+                        // MISSING
+                        doc.setTextColor(220, 38, 38); // Red
+                        doc.setFont("helvetica", "bold");
+                        doc.text("PENDIENTE / FALTA", xPos, y);
+
+                        // Reset
+                        doc.setTextColor(0);
+                        doc.setFont("helvetica", "normal");
+                    }
+
+                    // Line
+                    doc.setDrawColor(240);
+                    doc.line(15, y + 2, 200, y + 2);
+
+                    y += 6;
+                }
+
+                // Summary Footer
+                doc.setFontSize(10);
+                doc.setTextColor(0);
+                doc.text(`Resumen: Entregados: ${registeredCount} | Faltantes: ${missingCount}`, 15, y + 10);
+
+                doc.save(`Control_Distribucion_${dist.name.replace(/\s+/g, '_')}.pdf`);
+
+            } else {
+                // --- EXISTING CARD LOGIC (Legacy/Bulk) ---
+                let regsToPrint: Registration[] = [];
+
+                if (Array.isArray(target)) {
+                    regsToPrint = target;
+                } else {
+                    regsToPrint = filteredRegistrations;
+                }
+
+                if (regsToPrint.length === 0) {
+                    alert("⚠️ No hay datos seleccionados o la tabla está vacía. Verifica que haya registros cargados.");
+                    return;
+                }
+
+                // 1. Flatten all tickets (children) from the registrations
+                interface PrintableTicket {
+                    id: string;
+                    inviteNumber: string;
+                    gender: string;
+                    age: number;
+                    parentName: string;
+                    originalReg: Registration;
+                }
+
+                const allTickets: PrintableTicket[] = [];
+
+                regsToPrint.forEach(reg => {
+                    const children = (reg.children && reg.children.length > 0)
+                        ? reg.children
+                        : [{
+                            id: 'legacy',
+                            inviteNumber: reg.inviteNumber || '???',
+                            gender: reg.genderSelection || '?',
+                            age: reg.childAge || 0,
+                            fullName: 'Niño'
+                        } as any];
+
+                    children.forEach(child => {
+                        allTickets.push({
+                            id: child.id,
+                            inviteNumber: child.inviteNumber || '',
+                            gender: child.gender || 'Niño/a',
+                            age: child.age !== undefined ? child.age : 0,
+                            parentName: reg.parentName || reg.fullName || "Sin Nombre",
+                            originalReg: reg
+                        });
                     });
                 });
-            });
 
-            // 2. Sort by Invitation Number (Numeric)
-            allTickets.sort((a, b) => {
-                const getNum = (str: string) => {
-                    const match = str.match(/\d+/);
-                    return match ? parseInt(match[0], 10) : 999999;
-                };
-                return getNum(a.inviteNumber) - getNum(b.inviteNumber);
-            });
+                // 2. Sort by Invitation Number (Numeric)
+                allTickets.sort((a, b) => {
+                    const getNum = (str: string) => {
+                        const match = str.match(/\d+/);
+                        return match ? parseInt(match[0], 10) : 999999;
+                    };
+                    return getNum(a.inviteNumber) - getNum(b.inviteNumber);
+                });
 
-            // 3. Print Cards (New Format - Distributor Control)
-            for (const ticket of allTickets) {
-                // Position
-                const posX = startX + (col * (cardWidth + 10));
-                const posY = startY + (row * (cardHeight + 10));
+                // 3. Print Cards
+                let col = 0, row = 0;
+                const cardWidth = 90;
+                const cardHeight = 130;
+                const startX = 15;
+                const startY = 15;
+                let processed = 0;
 
-                // Border
-                doc.setDrawColor(200);
-                doc.rect(posX, posY, cardWidth, cardHeight);
+                for (const ticket of allTickets) {
+                    // Position
+                    const posX = startX + (col * (cardWidth + 10));
+                    const posY = startY + (row * (cardHeight + 10));
 
-                // Header
-                doc.setTextColor(30, 41, 59); // Slate 800
-                doc.setFontSize(10);
-                doc.setFont("helvetica", "bold");
-                doc.text("Compartiendo Sonrisas", posX + cardWidth / 2, posY + 15, { align: 'center' });
-                doc.setFontSize(9);
-                doc.setFont("helvetica", "bold");
-                doc.text("Gracias a Lorena Romero y Fundación Armando Bukele", posX + cardWidth / 2, posY + 22, { align: 'center' });
+                    // Border
+                    doc.setDrawColor(200);
+                    doc.rect(posX, posY, cardWidth, cardHeight);
 
-                // Divider
-                doc.setDrawColor(230);
-                doc.line(posX + 10, posY + 28, posX + cardWidth - 10, posY + 28);
+                    // Header
+                    doc.setTextColor(30, 41, 59); // Slate 800
+                    doc.setFontSize(10);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Entrega de Juguetes", posX + cardWidth / 2, posY + 15, { align: 'center' });
+                    doc.setFontSize(8);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("Gracias a Lorena Romero y Fundación Armando Bukele", posX + cardWidth / 2, posY + 22, { align: 'center' });
 
-                // Content
-                doc.setTextColor(0, 0, 0);
+                    // Divider
+                    doc.setDrawColor(230);
+                    doc.line(posX + 10, posY + 28, posX + cardWidth - 10, posY + 28);
 
-                // Gender
-                doc.setFontSize(14);
-                doc.setFont("helvetica", "bold");
-                doc.text(ticket.gender, posX + cardWidth / 2, posY + 45, { align: 'center' });
+                    // Content
+                    doc.setTextColor(0, 0, 0);
 
-                // Age
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "normal");
-                doc.text(`${ticket.age} Años`, posX + cardWidth / 2, posY + 52, { align: 'center' });
+                    // Gender
+                    doc.setFontSize(14);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(ticket.gender, posX + cardWidth / 2, posY + 45, { align: 'center' });
 
-                // Ticket Number
-                doc.setFontSize(10);
-                doc.setTextColor(100);
-                doc.text("Número de Ticket:", posX + cardWidth / 2, posY + 70, { align: 'center' });
+                    // Age
+                    doc.setFontSize(12);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(`${ticket.age} Años`, posX + cardWidth / 2, posY + 52, { align: 'center' });
 
-                doc.setFontSize(22);
-                doc.setTextColor(37, 99, 235); // Blue high vis
-                doc.setFont("courier", "bold"); // Monospace for numbers
-                doc.text(ticket.inviteNumber, posX + cardWidth / 2, posY + 82, { align: 'center' });
+                    // Ticket Number
+                    doc.setFontSize(10);
+                    doc.setTextColor(100);
+                    doc.text("Número de Ticket:", posX + cardWidth / 2, posY + 70, { align: 'center' });
 
-                // Responsible
-                doc.setFont("helvetica", "normal");
-                doc.setTextColor(80);
-                doc.setFontSize(8);
-                doc.text("Responsable:", posX + cardWidth / 2, posY + 100, { align: 'center' });
+                    doc.setFontSize(22);
+                    doc.setTextColor(37, 99, 235); // Blue high vis
+                    doc.setFont("courier", "bold"); // Monospace for numbers
+                    doc.text(ticket.inviteNumber, posX + cardWidth / 2, posY + 82, { align: 'center' });
 
-                doc.setFontSize(9);
-                doc.setTextColor(0);
-                doc.text(ticket.parentName, posX + cardWidth / 2, posY + 106, { align: 'center', maxWidth: cardWidth - 10 });
+                    // Responsible
+                    doc.setFont("helvetica", "normal");
+                    doc.setTextColor(80);
+                    doc.setFontSize(8);
+                    doc.text("Responsable:", posX + cardWidth / 2, posY + 100, { align: 'center' });
 
-                // Footer / Management Hint
-                doc.setFontSize(7);
-                doc.setTextColor(150);
-                doc.text("Control de Distribución", posX + cardWidth / 2, posY + 122, { align: 'center' });
+                    doc.setFontSize(9);
+                    doc.setTextColor(0);
+                    doc.text(ticket.parentName, posX + cardWidth / 2, posY + 106, { align: 'center', maxWidth: cardWidth - 10 });
 
-                // Grid Logic
-                col++;
-                if (col >= 2) { // 2 columns
-                    col = 0;
-                    row++;
+                    // Footer / Management Hint
+                    doc.setFontSize(7);
+                    doc.setTextColor(150);
+                    doc.text("Control de Distribución", posX + cardWidth / 2, posY + 122, { align: 'center' });
+
+                    // Grid Logic
+                    col++;
+                    if (col >= 2) { // 2 columns
+                        col = 0;
+                        row++;
+                    }
+
+                    if (row >= 2) { // 2 rows (4 per page)
+                        doc.addPage();
+                        col = 0;
+                        row = 0;
+                    }
+                    processed++;
                 }
 
-                if (row >= 2) { // 2 rows (4 per page)
-                    doc.addPage();
-                    col = 0;
-                    row = 0;
-                }
-                processed++;
+                const finalFileName = typeof groupName === 'string'
+                    ? `Control_Tickets_${groupName.replace(/\s+/g, '_')}.pdf`
+                    : "Control_Tickets_Global.pdf";
+
+                doc.save(finalFileName);
+                alert(`✅ PDF de Tickets generado con éxito!\n\nSe procesaron ${processed} tickets.`);
             }
-
-            const finalFileName = typeof groupName === 'string'
-                ? `Control_Tickets_${groupName.replace(/\s+/g, '_')}.pdf`
-                : "Control_Tickets_Global.pdf";
-
-            doc.save(finalFileName);
-            alert(`✅ Reporte de Control generado con éxito!\n\nSe procesaron ${processed} tickets ordenados por número.`);
-
-
         } catch (e) {
             console.error(e);
             alert("Error al generar PDF. Revisa la consola.");
@@ -1784,7 +1957,7 @@ const AdminPanel: React.FC = () => {
                                                                                 </div>
                                                                                 <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                                                                                     <button
-                                                                                        onClick={() => handleDownloadDistributorControl(dist)}
+                                                                                        onClick={() => handleExportPDF(dist)}
                                                                                         className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                                                         title="Descargar Lista de Control"
                                                                                     >

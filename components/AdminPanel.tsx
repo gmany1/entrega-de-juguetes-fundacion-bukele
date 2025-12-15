@@ -1185,8 +1185,9 @@ const AdminPanel: React.FC = () => {
             const doc = new jsPDF();
 
             // Check if we are printing a Distributor Control List
-            // We assume it's a distributor if it has 'startRange' and is not an array
-            const isDistributorReport = target && !Array.isArray(target) && ('startRange' in target || 'name' in target);
+            // If target exists and is NOT an array, it must be a TicketDistributor object
+            // (The event check above clears target if it's a React event)
+            const isDistributorReport = target && !Array.isArray(target);
 
             if (isDistributorReport) {
                 const dist = target as TicketDistributor;

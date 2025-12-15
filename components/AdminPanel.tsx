@@ -1186,7 +1186,7 @@ const AdminPanel: React.FC = () => {
 
             // Check if we are printing a Distributor Control List
             // We assume it's a distributor if it has 'startRange' and is not an array
-            const isDistributorReport = target && !Array.isArray(target) && 'startRange' in target;
+            const isDistributorReport = target && !Array.isArray(target) && ('startRange' in target || 'name' in target);
 
             if (isDistributorReport) {
                 const dist = target as TicketDistributor;

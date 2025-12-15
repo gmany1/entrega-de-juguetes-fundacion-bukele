@@ -50,7 +50,7 @@ export interface AppConfig {
   eventDate: string;
   maxRegistrations: number;
   isRegistrationOpen: boolean;
-  ticketDistributors: { name: string; phone: string }[]; // List of available distributors
+  ticketDistributors: { name: string; phone: string; startRange?: number; endRange?: number; }[]; // List of available distributors
 
   // Hero
   heroTitle: string;
@@ -93,18 +93,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   maxRegistrations: 850,
   isRegistrationOpen: true,
   ticketDistributors: [
-    { name: "Adilton Hernandez", phone: "" },
-    { name: "Ingrid Flores", phone: "" },
-    { name: "Adriana Linares", phone: "" },
-    { name: "Medardo Salinas", phone: "" },
-    { name: "Selene Roman", phone: "" },
-    { name: "Judith Aldana", phone: "" },
-    { name: "Yancy Grismery Flores", phone: "" },
-    { name: "Emerson Hernandez", phone: "" },
-    { name: "Noe Alvarado", phone: "" },
-    { name: "Ingrid Alvarado", phone: "" },
-    { name: "Seño Domi", phone: "" },
-    { name: "Maritza Chevez", phone: "" },
     { name: "Veronica Flores", phone: "" },
     { name: "Roxana Miron", phone: "" },
     { name: "Vladimir Mendoza", phone: "" },

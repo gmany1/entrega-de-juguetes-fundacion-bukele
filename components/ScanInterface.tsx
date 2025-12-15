@@ -1,13 +1,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Check, X, QrCode, Loader2, PackageCheck } from 'lucide-react';
+import { Check, X, QrCode, Loader2, PackageCheck, Wifi, WifiOff, RefreshCw, DownloadCloud } from 'lucide-react';
 import { Registration, Child } from '../types';
-import { getRegistrationById, updateChildStatus } from '../services/storageService';
+import { useOfflineSync } from '../hooks/useOfflineSync';
 
 const ScanInterface: React.FC = () => {
+    const { isOffline, whitelist, downloadWhitelist, addToQueue, queue, isSyncing } = useOfflineSync();
+
     const [scanResult, setScanResult] = useState<string | null>(null);
-    const [scannedData, setScannedData] = useState<any | null>(null);
     const [loading, setLoading] = useState(false);
     const [childValues, setChildValues] = useState<Child | null>(null);
     const [parentData, setParentData] = useState<Registration | null>(null);
@@ -20,7 +21,7 @@ const ScanInterface: React.FC = () => {
         // Initialize Scanner
         // Ensure element exists before init
         const scannerElement = document.getElementById('reader');
-        if (scannerElement && !scannerRef.current) {
+        if (scannerElement && !scannerRef.current && !scanResult) {
             const scanner = new Html5QrcodeScanner(
                 "reader",
                 {
@@ -37,27 +38,20 @@ const ScanInterface: React.FC = () => {
         }
 
         return () => {
-            if (scannerRef.current) {
-                scannerRef.current.clear().catch(console.error);
-                scannerRef.current = null;
-            }
+            // Cleanup handled by success/reset logic manually to avoid double-clear issues
         };
-    }, []);
+    }, [scanResult]); // Re-init when scanResult is cleared
 
     const onScanSuccess = (decodedText: string, decodedResult: any) => {
-        // Handle double verify
-        if (scanResult === decodedText) return;
-
-        console.log("Scan success:", decodedText);
+        if (scanResult) return;
 
         // Haptic Feedback
-        if (navigator.vibrate) {
-            navigator.vibrate(200);
-        }
+        if (navigator.vibrate) navigator.vibrate(200);
 
-        // CRITICAL FIX: Stop the scanner BEFORE React removes the div
+        // Stop scanner logic
         if (scannerRef.current) {
             scannerRef.current.clear().catch(console.error);
+            scannerRef.current = null;
         }
 
         setScanResult(decodedText);
@@ -67,18 +61,17 @@ const ScanInterface: React.FC = () => {
 
         try {
             const data = JSON.parse(decodedText);
-            setScannedData(data);
 
             // Validate Structure
             if (!data.parentId || !data.childId) {
                 throw new Error("Formato QR incorrecto.");
             }
 
-            fetchData(data.parentId, data.childId);
+            verifyTicket(data.parentId, data.childId);
 
         } catch (e) {
-            console.error("QR Parse Error", e);
-            setError("QR inválido. Intenta acercar más la cámara.");
+            console.error(e);
+            setError("QR inválido o irreconocible.");
             setLoading(false);
         }
     };
@@ -87,95 +80,113 @@ const ScanInterface: React.FC = () => {
         // console.warn(`Code scan error = ${error}`);
     };
 
-    const fetchData = async (parentId: string, childId: string) => {
-        try {
-            const reg = await getRegistrationById(parentId);
-            if (!reg) {
-                setError("Registro de padre no encontrado en base de datos.");
-                setLoading(false);
-                return;
-            }
+    const verifyTicket = (parentId: string, childId: string) => {
+        // 1. Check Local Whitelist FIRST (Fast & Offline)
+        const localParent = whitelist.find(p => p.id === parentId);
 
-            setParentData(reg);
+        if (localParent) {
+            setParentData(localParent);
 
-            setParentData(reg);
+            // Handle legacy records where children array might be missing/empty in older logic
+            // But our whitelist download should utilize the 'getRegistrations' which handles normalization?
+            // Actually, storageService 'getRegistrations' returns raw data. We might need to ensure normalization there or here.
+            // For now, assuming standard structure or basic legacy fallback.
 
-            // Handle legacy records where children array is missing
-            const children = (reg.children && reg.children.length > 0)
-                ? reg.children
-                : [{ fullName: 'Niño', inviteNumber: reg.inviteNumber, id: 'legacy', age: 0, gender: reg.genderSelection } as any];
+            const children = (localParent.children && localParent.children.length > 0)
+                ? localParent.children
+                : [{ fullName: 'Niño Legacy', inviteNumber: localParent.inviteNumber || '???', id: 'legacy', age: localParent.childAge || 0, gender: localParent.genderSelection || 'N/A' } as any];
 
-            // Try to find exact match
             let foundChild = children.find(c => c.id === childId);
 
-            // Fallback: If ID is 'legacy' or simply doesn't match but there is only 1 child option, assume it.
-            if (!foundChild && children.length === 1) {
+            // Legacy fallback ID match
+            if (!foundChild && (childId === 'legacy' || children.length === 1)) {
                 foundChild = children[0];
             }
 
-            if (!foundChild) {
-                setError("Niño no encontrado en este registro.");
+            if (foundChild) {
+                // Check if locally pending
+                const isPendingInQueue = queue.some(q => q.parentId === parentId && q.childId === foundChild!.id);
+                if (isPendingInQueue) {
+                    foundChild = { ...foundChild, status: 'delivered' };
+                }
+
+                setChildValues(foundChild);
                 setLoading(false);
                 return;
             }
-
-            setChildValues(foundChild);
-            setLoading(false);
-
-        } catch (e: any) {
-            console.error("Fetch error", e);
-            const msg = e.code ? `Error Code: ${e.code}` : (e.message || "Error desconocido");
-            setError(`Error de conexión: ${msg}`);
-            setLoading(false);
         }
+
+        // 2. If not in whitelist, valid error?
+        // If we are strictly offline, we can't do anything else.
+        if (whitelist.length > 0) {
+            setError("Ticket no encontrado en la lista descargada. Actualiza la lista si es reciente.");
+            setLoading(false);
+            return;
+        }
+
+        // 3. Fallback (shouldn't really happen if we enforce download, but for safety)
+        setError("Lista de validación vacía. Descarga la lista primero.");
+        setLoading(false);
     };
 
-    const handleDeliver = async () => {
+    const handleDeliver = () => {
         if (!parentData || !childValues) return;
 
         setLoading(true);
-        const result = await updateChildStatus(parentData.id, childValues.id, 'delivered', new Date().toISOString());
 
-        if (result.success) {
-            setSuccessMessage(`¡Juguete entregado a ${childValues.fullName || 'Niño'}!`);
-            // Update local state to reflect change immediately
-            setChildValues({ ...childValues, status: 'delivered', deliveredAt: new Date().toISOString() });
-        } else {
-            setError("Error al guardar la entrega. Intente de nuevo.");
-        }
+        // Optimistic Offline Add
+        addToQueue(parentData.id, childValues.id);
+
+        setSuccessMessage(`¡Entrega registrada offline! (${queue.length + 1} pendientes)`);
+        setChildValues({ ...childValues, status: 'delivered', deliveredAt: new Date().toISOString() });
         setLoading(false);
     };
 
     const resetScan = () => {
         setScanResult(null);
-        setScannedData(null);
         setChildValues(null);
         setParentData(null);
         setError(null);
         setSuccessMessage(null);
-
-        // Re-initialize scanner with a slight delay to allow DOM to render
-        setTimeout(() => {
-            const scannerElement = document.getElementById('reader');
-            if (scannerElement) {
-                const scanner = new Html5QrcodeScanner(
-                    "reader",
-                    {
-                        fps: 10,
-                        qrbox: { width: 300, height: 300 },
-                        aspectRatio: 1.0,
-                        showTorchButtonIfSupported: true
-                    },
-                    false
-                );
-                scanner.render(onScanSuccess, onScanFailure);
-                scannerRef.current = scanner;
-            }
-        }, 100);
+        // Effect will re-init scanner
     };
 
     return (
         <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
+
+            {/* Offline Status Bar */}
+            <div className="w-full bg-slate-100 rounded-lg p-3 mb-4 flex items-center justify-between shadow-inner">
+                <div className="flex items-center gap-3">
+                    {isOffline ? (
+                        <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
+                            <WifiOff size={18} /> Offline
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
+                            <Wifi size={18} /> Online
+                        </div>
+                    )}
+                    <span className="text-xs text-slate-400">|</span>
+                    <span className="text-xs text-slate-500 font-medium">Lista: {whitelist.length} regs</span>
+                </div>
+
+                <div className="flex gap-2">
+                    {queue.length > 0 && (
+                        <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold border border-orange-200 animate-pulse">
+                            {queue.length} Pendientes
+                        </span>
+                    )}
+                    <button
+                        onClick={downloadWhitelist}
+                        disabled={isSyncing || isOffline}
+                        className="p-1.5 bg-white text-slate-600 rounded border hover:bg-slate-50 disabled:opacity-50"
+                        title="Descargar Lista"
+                    >
+                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
+                    </button>
+                </div>
+            </div>
+
             {/* Scanner Container */}
             {!scanResult && (
                 <div className="w-full">
@@ -188,7 +199,7 @@ const ScanInterface: React.FC = () => {
             {loading && (
                 <div className="p-8 flex flex-col items-center animate-fade-in">
                     <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                    <p className="text-slate-600 font-medium">Verificando...</p>
+                    <p className="text-slate-600 font-medium">Procesando...</p>
                 </div>
             )}
 
@@ -200,7 +211,7 @@ const ScanInterface: React.FC = () => {
                             <X className="w-8 h-8 text-red-600" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-red-800">Error de Validación</h3>
+                            <h3 className="text-lg font-bold text-red-800">No Encontrado / Válido</h3>
                             <p className="text-red-700">{error}</p>
                         </div>
                     </div>
@@ -215,20 +226,13 @@ const ScanInterface: React.FC = () => {
                 <div className="bg-white rounded-2xl shadow-xl w-full border border-slate-200 overflow-hidden animate-fade-in max-w-sm mx-auto">
 
                     {/* Header - Validation Status */}
-                    <div className={`p-8 text-center flex flex-col items-center justify-center ${childValues.status === 'delivered' ? 'bg-orange-500 text-white' : 'bg-green-600 text-white'}`}>
-                        {childValues.status === 'delivered' ? (
-                            <>
-                                <PackageCheck className="w-16 h-16 mb-2 opacity-90" />
-                                <h2 className="text-3xl font-black uppercase tracking-wider">YA ENTREGADO</h2>
-                                <p className="text-white/80 font-medium mt-1">Este ticket ya fue canjeado</p>
-                            </>
-                        ) : (
-                            <>
-                                <Check className="w-16 h-16 mb-2 opacity-90" />
-                                <h2 className="text-4xl font-black uppercase tracking-wider">VALIDADO</h2>
-                                <p className="text-white/80 font-medium mt-1">Ticket Correcto</p>
-                            </>
-                        )}
+                    <div className="bg-slate-900 text-white p-4 text-center">
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Detalles del Invitado</h2>
+                    </div>
+
+                    {/* Status Banner */}
+                    <div className={`py-2 text-center text-xs font-bold uppercase tracking-widest ${childValues.status === 'delivered' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                        {childValues.status === 'delivered' ? '⚠️ YA ENTREGADO' : '✅ TICKET VÁLIDO'}
                     </div>
 
                     {/* Essential Info */}
@@ -236,18 +240,33 @@ const ScanInterface: React.FC = () => {
 
                         {/* Invitation Number */}
                         <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Número de Invitación</p>
-                            <div className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Número de Invitación</p>
+                            <div className="text-4xl font-black text-slate-800 font-mono tracking-tighter bg-slate-50 py-2 rounded-lg border border-slate-100">
                                 {childValues.inviteNumber}
                             </div>
                         </div>
 
-                        {/* Responsible Name */}
-                        <div className="border-t border-slate-100 pt-4">
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Responsable</p>
-                            <div className="text-xl font-bold text-slate-700 leading-tight">
-                                {parentData.parentName || parentData.fullName}
+                        {/* Child Info */}
+                        <div className="grid grid-cols-2 gap-4 text-left">
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Niño/a</p>
+                                <div className="font-bold text-slate-700 leading-tight">
+                                    {childValues.fullName}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1">{childValues.age} Años • {childValues.gender}</div>
                             </div>
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Responsable</p>
+                                <div className="font-bold text-slate-700 leading-tight">
+                                    {parentData.parentName || parentData.fullName}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-2 pb-2">
+                            <p className="text-xs font-bold text-red-500 uppercase tracking-widest border border-red-200 bg-red-50 py-1.5 px-3 rounded-md inline-block">
+                                Invitación Única e Intransferible
+                            </p>
                         </div>
 
                         {/* Action Buttons */}
@@ -258,7 +277,7 @@ const ScanInterface: React.FC = () => {
                                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-[0.98]"
                                 >
                                     <PackageCheck className="w-6 h-6" />
-                                    ENTREGAR JUGUETE
+                                    ENTREGAR (OFFLINE)
                                 </button>
                             ) : (
                                 <div className="bg-slate-100 text-slate-500 py-3 rounded-xl font-bold border border-slate-200">

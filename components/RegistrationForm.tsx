@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Send, CheckCircle2, AlertCircle, MapPin, Lock, Loader2, Contact } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { getRemainingSlots, saveRegistration } from '../services/storageService';
 import { useConfig } from '../contexts/ConfigContext';
 
@@ -27,7 +28,13 @@ const RegistrationForm: React.FC = () => {
   };
   const [remainingSlots, setRemainingSlots] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedData, setSubmittedData] = useState<{ name: string, count: number, whatsappLink: string } | null>(null);
+  const [submittedData, setSubmittedData] = useState<{
+    parentId: string;
+    name: string;
+    count: number;
+    whatsappLink: string;
+    children: { id: string; name: string; inviteNumber: string; age: number; gender: string }[];
+  } | null>(null);
 
   // New state for children list
   const [children, setChildren] = useState([{ id: crypto.randomUUID(), name: '', inviteNumber: '', gender: 'Niño', age: '' }]);
@@ -143,6 +150,17 @@ const RegistrationForm: React.FC = () => {
         return false;
       }
 
+      // Distributor Range Validation
+      if (formData.ticketDistributor && config.ticketDistributors) {
+        const distributor = config.ticketDistributors.find(d => d.name === formData.ticketDistributor);
+        if (distributor && distributor.startRange && distributor.endRange) {
+          if (inviteNum < distributor.startRange || inviteNum > distributor.endRange) {
+            setError(`La invitación "${child.inviteNumber}" no pertenece a ${distributor.name}. Su rango asignado es del TI${distributor.startRange.toString().padStart(4, '0')} al TI${distributor.endRange.toString().padStart(4, '0')}.`);
+            return false;
+          }
+        }
+      }
+
       if (usedInvites.has(child.inviteNumber.trim())) {
         setError(`La invitación "${child.inviteNumber}" está duplicada en este formulario.`);
         return false;
@@ -225,9 +243,17 @@ const RegistrationForm: React.FC = () => {
 
       // Handle success state
       setSubmittedData({
+        parentId: result.data?.id || 'unknown',
         name: formData.fullName,
         count: children.length,
-        whatsappLink: link
+        whatsappLink: link,
+        children: children.map(c => ({
+          id: c.id,
+          name: c.name,
+          inviteNumber: c.inviteNumber,
+          age: parseInt(c.age),
+          gender: c.gender
+        }))
       });
 
       // Try to auto-open (best effort)
@@ -253,37 +279,89 @@ const RegistrationForm: React.FC = () => {
     };
 
     return (
-      <div className="max-w-2xl mx-auto my-12 p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-lg animate-fade-in-up">
-        <div className="flex justify-center mb-4">
-          <CheckCircle2 className="w-16 h-16 text-green-600" />
+      <div className="max-w-xl mx-auto my-8 animate-fade-in-up">
+        <div className="bg-green-50 border border-green-200 rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-green-600 p-6 text-center text-white">
+            <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+              <CheckCircle2 className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-1">¡Registro Exitoso!</h2>
+            <p className="text-green-50 opacity-90">
+              Gracias <strong>{submittedData.name}</strong>. Hemos guardado tus datos.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* QR Tickets Section */}
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center justify-center gap-2">
+                  <span className="text-xl">🎟️</span> Tus Tickets Digitales
+                </h3>
+                <p className="text-sm text-slate-500">Toma una captura de pantalla a estos códigos.</p>
+              </div>
+
+              <div className="grid gap-4">
+                {submittedData.children.map((child, idx) => (
+                  <div key={idx} className="bg-white p-4 rounded-xl border-2 border-dashed border-slate-300 shadow-sm flex items-center gap-4 relative overflow-hidden group hover:border-blue-400 transition-colors">
+                    {/* Ticket Stub styling */}
+                    <div className="absolute top-1/2 -left-2 w-4 h-4 bg-green-50 rounded-full"></div>
+                    <div className="absolute top-1/2 -right-2 w-4 h-4 bg-green-50 rounded-full"></div>
+
+                    <div className="bg-slate-900 p-2 rounded-lg shrink-0">
+                      <QRCodeCanvas
+                        value={JSON.stringify({
+                          parentId: submittedData.parentId,
+                          childId: child.id
+                        })}
+                        size={80}
+                        level={"M"}
+                        bgColor="#0f172a"
+                        fgColor="#ffffff"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <div className="flex-grow min-w-0">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ticket #{child.inviteNumber}</div>
+                      <div className="font-bold text-slate-800 text-lg leading-tight truncate">{child.name}</div>
+                      <div className="text-sm text-slate-500 mt-1">{child.age} Años • {child.gender}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-6">
+              <p className="text-center text-slate-600 text-sm mb-4">
+                Para finalizar, confirma tu asistencia en WhatsApp y guarda nuestro contacto.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleCombinedAction}
+                  className="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-green-600/20 flex items-center justify-center gap-2 transform transition-all active:scale-95"
+                >
+                  <Send className="w-5 h-5" />
+                  Confirmar en WhatsApp
+                </button>
+
+                <button
+                  onClick={downloadVCard}
+                  className="text-slate-500 text-xs hover:text-slate-700 underline text-center"
+                >
+                  Descargar contacto manualmente
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-3 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm"
+            >
+              Registrar otra familia
+            </button>
+          </div>
         </div>
-        <h2 className="text-3xl font-bold text-green-800 mb-4">¡Registro Exitoso!</h2>
-        <p className="text-green-700 text-lg mb-6">
-          Gracias <strong>{submittedData.name}</strong>. Hemos procesado el registro de {submittedData.count} niño(s).
-          <br className="hidden md:block" />
-          Para finalizar, confirma tu asistencia en WhatsApp (esto también guardará nuestro contacto).
-        </p>
-
-        <div className="flex flex-col gap-4 justify-center items-center mb-8">
-          <button
-            onClick={handleCombinedAction}
-            className="w-full max-w-sm py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xl shadow-lg flex items-center justify-center gap-3 transform transition-transform active:scale-95 animate-pulse-slow"
-          >
-            <Send className="w-6 h-6" />
-            Confirmar Asistencia Ahora
-          </button>
-
-          <p className="text-sm text-slate-500">
-            ¿No se descargó el contacto? <button onClick={downloadVCard} className="text-green-600 underline font-medium">Haz clic aquí para guardarlo manualmente</button>
-          </p>
-        </div>
-
-        <button
-          onClick={() => window.location.reload()}
-          className="text-green-800 underline hover:text-green-900 text-sm"
-        >
-          Registrar otra familia
-        </button>
       </div>
     );
   }

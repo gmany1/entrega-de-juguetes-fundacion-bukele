@@ -190,8 +190,12 @@ const AdminPanel: React.FC = () => {
     const [editingDistributorIndex, setEditingDistributorIndex] = useState<number | null>(null);
     const [tempDistributorName, setTempDistributorName] = useState('');
     const [tempDistributorPhone, setTempDistributorPhone] = useState('');
+    const [tempDistributorStart, setTempDistributorStart] = useState<number>(0);
+    const [tempDistributorEnd, setTempDistributorEnd] = useState<number>(0);
     const [newDistributorName, setNewDistributorName] = useState('');
     const [newDistributorPhone, setNewDistributorPhone] = useState('');
+    const [newDistributorStart, setNewDistributorStart] = useState<number>(0);
+    const [newDistributorEnd, setNewDistributorEnd] = useState<number>(0);
 
     // Statistics Data Processing
     const stats = useMemo(() => {
@@ -506,7 +510,9 @@ const AdminPanel: React.FC = () => {
             result = result.filter(reg =>
                 (reg.parentName || reg.fullName || '').toLowerCase().includes(lowerInfo) ||
                 (reg.whatsapp || '').includes(lowerInfo) ||
-                (reg.ticketDistributor || '').toLowerCase().includes(lowerInfo)
+                (reg.ticketDistributor || '').toLowerCase().includes(lowerInfo) ||
+                (reg.inviteNumber || '').toLowerCase().includes(lowerInfo) ||
+                (reg.children || []).some(child => (child.inviteNumber || '').toLowerCase().includes(lowerInfo))
             );
         }
 
@@ -662,89 +668,132 @@ const AdminPanel: React.FC = () => {
                 return;
             }
 
-            for (const reg of regsToPrint) {
-                const children = reg.children && reg.children.length > 0 ? reg.children : [{ fullName: 'Niño', inviteNumber: reg.inviteNumber, id: 'legacy', age: 0, gender: reg.genderSelection } as any];
+            // 1. Flatten all tickets (children) from the registrations
+            interface PrintableTicket {
+                id: string;
+                inviteNumber: string;
+                gender: string;
+                age: number;
+                parentName: string;
+                originalReg: Registration;
+            }
 
-                for (const child of children) {
-                    // Generate QR
-                    const qrData = JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName });
-                    const qrDataUrl = await QRCode.toDataURL(qrData);
+            const allTickets: PrintableTicket[] = [];
 
-                    // Position
-                    const posX = startX + (col * (cardWidth + 10));
-                    const posY = startY + (row * (cardHeight + 10));
+            regsToPrint.forEach(reg => {
+                const children = (reg.children && reg.children.length > 0)
+                    ? reg.children
+                    : [{
+                        id: 'legacy',
+                        inviteNumber: reg.inviteNumber || '???',
+                        gender: reg.genderSelection || '?',
+                        age: reg.childAge || 0,
+                        fullName: 'Niño'
+                    } as any];
 
-                    // visual card
-                    doc.setDrawColor(200);
-                    doc.rect(posX, posY, cardWidth, cardHeight);
+                children.forEach(child => {
+                    allTickets.push({
+                        id: child.id,
+                        inviteNumber: child.inviteNumber || '',
+                        gender: child.gender || 'Niño/a',
+                        age: child.age !== undefined ? child.age : 0,
+                        parentName: reg.parentName || reg.fullName || "Sin Nombre",
+                        originalReg: reg
+                    });
+                });
+            });
 
-                    // Header
-                    doc.setFillColor(30, 41, 59); // Slate 800
-                    doc.rect(posX, posY, cardWidth, 22, 'F'); // Taller header
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(9);
-                    doc.text("Compartiendo Sonrisas", posX + cardWidth / 2, posY + 8, { align: 'center' });
-                    doc.setFontSize(8);
-                    doc.setFont("helvetica", "bold");
-                    doc.text("Fundación Armando Bukele", posX + cardWidth / 2, posY + 16, { align: 'center' });
+            // 2. Sort by Invitation Number (Numeric)
+            allTickets.sort((a, b) => {
+                const getNum = (str: string) => {
+                    const match = str.match(/\d+/);
+                    return match ? parseInt(match[0], 10) : 999999;
+                };
+                return getNum(a.inviteNumber) - getNum(b.inviteNumber);
+            });
 
-                    // Content
-                    doc.setTextColor(0, 0, 0);
+            // 3. Print Cards (New Format - Distributor Control)
+            for (const ticket of allTickets) {
+                // Position
+                const posX = startX + (col * (cardWidth + 10));
+                const posY = startY + (row * (cardHeight + 10));
 
-                    // Body: Just Gender and Age as requested
-                    doc.setFontSize(16);
-                    doc.setFont("helvetica", "bold");
-                    doc.text(child.gender || "Niño/a", posX + cardWidth / 2, posY + 35, { align: 'center' });
+                // Border
+                doc.setDrawColor(200);
+                doc.rect(posX, posY, cardWidth, cardHeight);
 
-                    // Age
-                    doc.setFontSize(12);
-                    doc.setFont("helvetica", "normal");
-                    doc.text(`${child.age} Años`, posX + cardWidth / 2, posY + 42, { align: 'center' });
+                // Header
+                doc.setTextColor(30, 41, 59); // Slate 800
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "bold");
+                doc.text("Compartiendo Sonrisas", posX + cardWidth / 2, posY + 15, { align: 'center' });
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "bold");
+                doc.text("Fundación Armando Bukele", posX + cardWidth / 2, posY + 22, { align: 'center' });
 
-                    // Invite Number (Big)
-                    doc.setFontSize(18);
-                    doc.setTextColor(37, 99, 235); // Blue
-                    doc.text(child.inviteNumber || "---", posX + cardWidth / 2, posY + 55, { align: 'center' });
+                // Divider
+                doc.setDrawColor(230);
+                doc.line(posX + 10, posY + 28, posX + cardWidth - 10, posY + 28);
 
-                    // QR Code
-                    doc.addImage(qrDataUrl, 'PNG', posX + (cardWidth - 50) / 2, posY + 60, 50, 50);
+                // Content
+                doc.setTextColor(0, 0, 0);
 
-                    // Footer
-                    doc.setTextColor(80); // Darker gray
-                    doc.setFontSize(7);
-                    doc.setFont("helvetica", "normal");
+                // Gender
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.text(ticket.gender, posX + cardWidth / 2, posY + 45, { align: 'center' });
 
-                    const parentLabel = reg.parentName || reg.fullName || "Sin Nombre";
-                    doc.text(`Responsable: ${parentLabel}`, posX + cardWidth / 2, posY + 116, { align: 'center', maxWidth: cardWidth - 5 });
+                // Age
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "normal");
+                doc.text(`${ticket.age} Años`, posX + cardWidth / 2, posY + 52, { align: 'center' });
 
-                    // Special Credit
-                    doc.setFontSize(6);
-                    doc.setFont("helvetica", "italic");
-                    doc.setTextColor(100);
-                    doc.text("Gracias a la gestión de Verena Flores", posX + cardWidth / 2, posY + 125, { align: 'center' });
+                // Ticket Number
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text("Número de Ticket:", posX + cardWidth / 2, posY + 70, { align: 'center' });
 
-                    // Grid Logic
-                    col++;
-                    if (col >= 2) { // 2 columns
-                        col = 0;
-                        row++;
-                    }
+                doc.setFontSize(22);
+                doc.setTextColor(37, 99, 235); // Blue high vis
+                doc.setFont("courier", "bold"); // Monospace for numbers
+                doc.text(ticket.inviteNumber, posX + cardWidth / 2, posY + 82, { align: 'center' });
 
-                    if (row >= 2) { // 2 rows (4 per page)
-                        doc.addPage();
-                        col = 0;
-                        row = 0;
-                    }
-                    processed++;
+                // Responsible
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(80);
+                doc.setFontSize(8);
+                doc.text("Responsable:", posX + cardWidth / 2, posY + 100, { align: 'center' });
+
+                doc.setFontSize(9);
+                doc.setTextColor(0);
+                doc.text(ticket.parentName, posX + cardWidth / 2, posY + 106, { align: 'center', maxWidth: cardWidth - 10 });
+
+                // Footer / Management Hint
+                doc.setFontSize(7);
+                doc.setTextColor(150);
+                doc.text("Control de Distribución", posX + cardWidth / 2, posY + 122, { align: 'center' });
+
+                // Grid Logic
+                col++;
+                if (col >= 2) { // 2 columns
+                    col = 0;
+                    row++;
                 }
+
+                if (row >= 2) { // 2 rows (4 per page)
+                    doc.addPage();
+                    col = 0;
+                    row = 0;
+                }
+                processed++;
             }
 
             const finalFileName = typeof groupName === 'string'
-                ? `invitaciones_${groupName.replace(/\s+/g, '_')}.pdf`
-                : "invitaciones_juguetes.pdf";
+                ? `Control_Tickets_${groupName.replace(/\s+/g, '_')}.pdf`
+                : "Control_Tickets_Global.pdf";
 
             doc.save(finalFileName);
-            alert(`✅ PDF generado con éxito!\n\nSe procesaron ${processed} invitaciones.`);
+            alert(`✅ Reporte de Control generado con éxito!\n\nSe procesaron ${processed} tickets ordenados por número.`);
 
 
         } catch (e) {
@@ -1041,35 +1090,62 @@ const AdminPanel: React.FC = () => {
 
                                             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                                                 {/* Add New */}
-                                                <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={newDistributorName}
-                                                        onChange={(e) => setNewDistributorName(e.target.value)}
-                                                        placeholder="Nombre del distribuidor..."
-                                                        className="flex-[2] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    />
-                                                    <input
-                                                        type="tel"
-                                                        value={newDistributorPhone} // We need to add this state variable
-                                                        onChange={(e) => setNewDistributorPhone(e.target.value)}
-                                                        placeholder="WhatsApp (Ej. 7000-0000)"
-                                                        className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    />
-                                                    <button
-                                                        onClick={() => {
-                                                            if (newDistributorName.trim()) {
-                                                                const current = localConfig.ticketDistributors || [];
-                                                                handleInputChange('ticketDistributors', [...current, { name: newDistributorName.trim(), phone: newDistributorPhone.trim() }]);
-                                                                setNewDistributorName('');
-                                                                setNewDistributorPhone('');
-                                                            }
-                                                        }}
-                                                        disabled={!newDistributorName.trim()}
-                                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                    >
-                                                        Agregar
-                                                    </button>
+                                                <div className="flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={newDistributorName}
+                                                            onChange={(e) => setNewDistributorName(e.target.value)}
+                                                            placeholder="Nuevo Distribuidor..."
+                                                            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        />
+                                                        <input
+                                                            type="tel"
+                                                            value={newDistributorPhone}
+                                                            onChange={(e) => setNewDistributorPhone(e.target.value)}
+                                                            placeholder="WhatsApp"
+                                                            className="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2 items-center">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Inicio"
+                                                            className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
+                                                            value={newDistributorStart || ''}
+                                                            onChange={(e) => setNewDistributorStart(parseInt(e.target.value) || 0)}
+                                                        />
+                                                        <span className="text-slate-400">-</span>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Fin"
+                                                            className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
+                                                            value={newDistributorEnd || ''}
+                                                            onChange={(e) => setNewDistributorEnd(parseInt(e.target.value) || 0)}
+                                                        />
+                                                        <div className="flex-grow"></div>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (newDistributorName.trim()) {
+                                                                    const current = localConfig.ticketDistributors || [];
+                                                                    handleInputChange('ticketDistributors', [...current, {
+                                                                        name: newDistributorName.trim(),
+                                                                        phone: newDistributorPhone.trim(),
+                                                                        startRange: newDistributorStart,
+                                                                        endRange: newDistributorEnd
+                                                                    }]);
+                                                                    setNewDistributorName('');
+                                                                    setNewDistributorPhone('');
+                                                                    setNewDistributorStart(0);
+                                                                    setNewDistributorEnd(0);
+                                                                }
+                                                            }}
+                                                            disabled={!newDistributorName.trim()}
+                                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            Agregar
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* List */}
@@ -1079,94 +1155,132 @@ const AdminPanel: React.FC = () => {
                                                             No hay distribuidores registrados.
                                                         </div>
                                                     ) : (
-                                                        (localConfig.ticketDistributors || []).map((rawDist, idx) => {
-                                                            // Normalize data: Handle legacy strings and new objects
-                                                            const dist = typeof rawDist === 'string'
-                                                                ? { name: rawDist, phone: '' }
-                                                                : (rawDist || { name: '', phone: '' });
-
-                                                            return (
-                                                                <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                                                                    {editingDistributorIndex === idx ? (
-                                                                        <div className="flex-1 flex flex-col md:flex-row items-center gap-2 mr-2">
-                                                                            <input
-                                                                                type="text"
-                                                                                value={tempDistributorName}
-                                                                                onChange={(e) => setTempDistributorName(e.target.value)}
-                                                                                className="flex-[2] px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                                                                                placeholder="Nombre"
-                                                                                autoFocus
-                                                                            />
-                                                                            <input
-                                                                                type="tel"
-                                                                                value={tempDistributorPhone} // We need to add this state variable
-                                                                                onChange={(e) => setTempDistributorPhone(e.target.value)}
-                                                                                className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full"
-                                                                                placeholder="Teléfono"
-                                                                            />
-                                                                            <div className="flex gap-1">
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        const updated = [...(localConfig.ticketDistributors || [])];
-                                                                                        updated[idx] = { name: tempDistributorName.trim(), phone: tempDistributorPhone.trim() };
-                                                                                        handleInputChange('ticketDistributors', updated);
-                                                                                        setEditingDistributorIndex(null);
-                                                                                    }}
-                                                                                    className="text-green-600 hover:bg-green-50 p-1 rounded"
-                                                                                    title="Guardar"
-                                                                                >
-                                                                                    <Check size={16} />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => setEditingDistributorIndex(null)}
-                                                                                    className="text-red-500 hover:bg-red-50 p-1 rounded"
-                                                                                    title="Cancelar"
-                                                                                >
-                                                                                    <X size={16} />
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <>
-                                                                            <div className="flex items-center gap-3">
-                                                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
-                                                                                    {(dist.name || '').charAt(0).toUpperCase()}
+                                                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                                            {(localConfig.ticketDistributors || []).map((rawDist, idx) => {
+                                                                // Normalize data: Handle legacy strings and new objects
+                                                                const dist = typeof rawDist === 'string'
+                                                                    ? { name: rawDist, phone: '', startRange: 0, endRange: 0 }
+                                                                    : (rawDist || { name: '', phone: '', startRange: 0, endRange: 0 });
+                                                                const isEditing = editingDistributorIndex === idx;
+                                                                return (
+                                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 group hover:border-blue-300 transition-colors">
+                                                                        {isEditing ? (
+                                                                            <div className="flex-1 flex flex-col gap-2">
+                                                                                <div className="flex gap-2">
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={tempDistributorName}
+                                                                                        onChange={(e) => setTempDistributorName(e.target.value)}
+                                                                                        className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
+                                                                                        placeholder="Nombre"
+                                                                                    />
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={tempDistributorPhone}
+                                                                                        onChange={(e) => setTempDistributorPhone(e.target.value)}
+                                                                                        className="w-24 px-2 py-1 border border-slate-300 rounded text-sm"
+                                                                                        placeholder="Teléfono"
+                                                                                    />
                                                                                 </div>
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
-                                                                                    {dist.phone && <span className="text-xs text-slate-400">{dist.phone}</span>}
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        placeholder="Inicio e.g. 1"
+                                                                                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
+                                                                                        value={tempDistributorStart}
+                                                                                        onChange={(e) => setTempDistributorStart(parseInt(e.target.value) || 0)}
+                                                                                    />
+                                                                                    <span className="text-slate-400">-</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        placeholder="Fin e.g. 100"
+                                                                                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
+                                                                                        value={tempDistributorEnd}
+                                                                                        onChange={(e) => setTempDistributorEnd(parseInt(e.target.value) || 0)}
+                                                                                    />
+                                                                                    <div className="flex-grow"></div>
+                                                                                    <div className="flex gap-1">
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                const updated = [...(localConfig.ticketDistributors || [])];
+                                                                                                updated[idx] = {
+                                                                                                    name: tempDistributorName.trim(),
+                                                                                                    phone: tempDistributorPhone.trim(),
+                                                                                                    startRange: tempDistributorStart,
+                                                                                                    endRange: tempDistributorEnd
+                                                                                                };
+                                                                                                handleInputChange('ticketDistributors', updated);
+                                                                                                setEditingDistributorIndex(null);
+                                                                                            }}
+                                                                                            className="text-green-600 hover:bg-green-50 p-1 rounded"
+                                                                                            title="Guardar"
+                                                                                        >
+                                                                                            <Check size={16} />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={() => setEditingDistributorIndex(null)}
+                                                                                            className="text-red-500 hover:bg-red-50 p-1 rounded"
+                                                                                            title="Cancelar"
+                                                                                        >
+                                                                                            <X size={16} />
+                                                                                        </button>
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        setEditingDistributorIndex(idx);
-                                                                                        setTempDistributorName(dist.name);
-                                                                                        setTempDistributorPhone(dist.phone || '');
-                                                                                    }}
-                                                                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                                                    title="Editar"
-                                                                                >
-                                                                                    <Edit2 size={14} />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
-                                                                                            const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
-                                                                                            handleInputChange('ticketDistributors', updated);
-                                                                                        }
-                                                                                    }}
-                                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                                    title="Eliminar"
-                                                                                >
-                                                                                    <Trash2 size={14} />
-                                                                                </button>
-                                                                            </div>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })
+                                                                        ) : (
+                                                                            <>
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs relative">
+                                                                                        {(dist.name || '').charAt(0).toUpperCase()}
+                                                                                        {dist.startRange && dist.endRange ? (
+                                                                                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
+                                                                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                                                                            {dist.phone && <span>{dist.phone}</span>}
+                                                                                            {dist.startRange && dist.endRange && (
+                                                                                                <span className="bg-green-50 text-green-700 px-1.5 rounded border border-green-100">
+                                                                                                    Range: {dist.startRange} - {dist.endRange}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            setEditingDistributorIndex(idx);
+                                                                                            setTempDistributorName(dist.name);
+                                                                                            setTempDistributorPhone(dist.phone || '');
+                                                                                            setTempDistributorStart(dist.startRange || 0);
+                                                                                            setTempDistributorEnd(dist.endRange || 0);
+                                                                                        }}
+                                                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                                        title="Editar"
+                                                                                    >
+                                                                                        <Edit2 size={14} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
+                                                                                                const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                                                                handleInputChange('ticketDistributors', updated);
+                                                                                            }
+                                                                                        }}
+                                                                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                                        title="Eliminar"
+                                                                                    >
+                                                                                        <Trash2 size={14} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1715,13 +1829,45 @@ const AdminPanel: React.FC = () => {
                                                                                                 ))}
                                                                                             </div>
                                                                                         ) : (
-                                                                                            /* Legacy Display */
-                                                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                                                reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                                    'bg-purple-100 text-purple-700'
-                                                                                                }`}>
-                                                                                                {reg.childCount} {reg.genderSelection}
-                                                                                            </span>
+                                                                                            /* Legacy Display - Now Standardized */
+                                                                                            <div className="space-y-1">
+                                                                                                {Array.from({ length: Math.max(1, reg.childCount || 1) }).map((_, i) => {
+                                                                                                    // Virtual Child for Legacy Data
+                                                                                                    const legacyName = reg.fullName || "Sin Nombre";
+                                                                                                    const legacyInvite = reg.inviteNumber || "---";
+                                                                                                    const legacyAge = reg.childAge || 0;
+                                                                                                    const legacyGender = reg.genderSelection || "Niño/a";
+
+                                                                                                    return (
+                                                                                                        <div key={`legacy-${i}`} className="flex items-center justify-between text-xs bg-orange-50/50 border border-orange-200 p-1.5 rounded gap-2">
+                                                                                                            <div className="flex flex-col">
+                                                                                                                <span className="font-bold text-slate-700">{legacyName} <span className="text-[9px] text-orange-600">(Legacy)</span></span>
+                                                                                                                <span className="text-[10px] text-slate-500">{legacyAge} años - {legacyGender} - {legacyInvite}</span>
+                                                                                                            </div>
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation();
+                                                                                                                    setViewingQR({
+                                                                                                                        name: legacyName,
+                                                                                                                        invite: legacyInvite,
+                                                                                                                        data: JSON.stringify({
+                                                                                                                            parentId: reg.id,
+                                                                                                                            childId: 'legacy',
+                                                                                                                            invite: legacyInvite,
+                                                                                                                            name: legacyName,
+                                                                                                                            isLegacy: true
+                                                                                                                        })
+                                                                                                                    });
+                                                                                                                }}
+                                                                                                                className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
+                                                                                                                title="Ver QR (Generado)"
+                                                                                                            >
+                                                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
                                                                                         )}
                                                                                     </td>
                                                                                     <td className="px-6 py-4 text-right flex justify-end gap-2">

@@ -57,13 +57,19 @@ const QRDisplay = () => {
                     <span className="uppercase text-sm font-bold text-slate-500">{gender}</span>
                 </p>
 
-                <div className="bg-blue-50 text-blue-700 px-6 py-4 rounded-xl font-mono font-black text-3xl mb-6 border-2 border-blue-100 tracking-wider shadow-sm">
+                <div className="bg-blue-50 text-blue-700 px-6 py-4 rounded-xl font-mono font-black text-3xl mb-4 border-2 border-blue-100 tracking-wider shadow-sm">
                     {invite}
+                </div>
+
+                <div className="mb-6">
+                    <p className="text-xs font-bold text-red-500 uppercase tracking-widest border border-red-200 bg-red-50 py-1.5 px-3 rounded-md inline-block">
+                        Invitación Única e Intransferible
+                    </p>
                 </div>
 
                 <div className="space-y-3">
                     <p className="text-sm text-slate-500 font-medium leading-relaxed bg-slate-50 p-3 rounded-lg">
-                        Presenta este código al equipo de entrega para recibir tu juguete.
+                        Presenta este código al equipo de entrega.
                     </p>
 
                     <div className="pt-4 border-t border-slate-100">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck } from 'lucide-react';
+import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, LayoutTemplate, Search, CheckCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -580,27 +580,41 @@ const AdminPanel: React.FC = () => {
             .slice(0, 5);
 
         // 3. Family Size Distribution
-        // 3. Family Size Distribution (Grouped by Household/Phone)
-        const familySizeCountsByPhone: Record<string, number> = {};
+        // 3. Delivery Progress (Delivered vs Pending)
+        let totalTickets = 0;
+        let deliveredTickets = 0;
+
         registrations.forEach(r => {
-            // Normalize phone to avoid duplicates (remove spaces/dashes if any, simplified here)
-            const phone = r.whatsapp?.trim() || 'unknown';
-            if (phone !== 'unknown') {
-                familySizeCountsByPhone[phone] = (familySizeCountsByPhone[phone] || 0) + r.childCount;
+            if (r.children && r.children.length > 0) {
+                r.children.forEach(c => {
+                    totalTickets++;
+                    if (c.status === 'delivered') deliveredTickets++;
+                });
             } else {
-                // If no phone, treat as single unique entry
-                familySizeCountsByPhone[`unknown_${r.id}`] = r.childCount;
+                // Legacy
+                const count = r.childCount || 1;
+                totalTickets += count;
+                // Legacy records don't track status well unless we add it, assuming pending for now or check if whole reg is marked?
+                // Current model doesn't have 'status' on reg, only children.
+                // So we assume 0 delivered for legacy unless we add logic.
             }
         });
 
-        const familySizeDist: Record<number, number> = {};
-        Object.values(familySizeCountsByPhone).forEach(count => {
-            familySizeDist[count] = (familySizeDist[count] || 0) + 1;
-        });
+        const deliveryProgressData = [
+            { name: 'Entregados', value: deliveredTickets },
+            { name: 'Pendientes', value: totalTickets - deliveredTickets }
+        ].filter(d => d.value > 0);
 
-        const familySizeData = Object.entries(familySizeDist)
-            .map(([size, count]) => ({ size: `${size} Niños`, count }))
-            .sort((a, b) => Number((a.size || '').split(' ')[0]) - Number((b.size || '').split(' ')[0]));
+        // Calculate Family Size for Red Flags (Re-implemented for internal use)
+        const familySizeCountsByPhone: Record<string, number> = {};
+        registrations.forEach(r => {
+            const phone = r.whatsapp?.trim() || 'unknown';
+            if (phone !== 'unknown') {
+                familySizeCountsByPhone[phone] = (familySizeCountsByPhone[phone] || 0) + (r.children?.length || r.childCount || 0);
+            } else {
+                familySizeCountsByPhone[`unknown_${r.id}`] = (r.children?.length || r.childCount || 0);
+            }
+        });
 
         // 4. Registration Timeline (Sorted Chronologically)
         const timelineMap: Record<string, { count: number, label: string }> = {};
@@ -659,7 +673,7 @@ const AdminPanel: React.FC = () => {
             .map(([phone, count]) => ({ phone, count }))
             .sort((a, b) => b.count - a.count);
 
-        return { genderData, municipalData, familySizeData, timelineData, ageData, distributorData, redFlags };
+        return { genderData, municipalData, deliveryProgressData, timelineData, ageData, distributorData, redFlags };
     }, [registrations]);
 
     // Progress
@@ -2361,19 +2375,32 @@ const AdminPanel: React.FC = () => {
                                                         Total Niños/as: <span className="font-bold text-slate-800">{registrations.reduce((acc, r) => acc + r.childCount, 0)}</span>
                                                     </div>
                                                 </div>
-                                                {/* Cost/Size Distribution (Bar) */}
+                                                {/* Delivery Progress (Pie) */}
                                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-4 h-4 text-green-500" /> Tamaño de Familia</h4>
+                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600" /> Progreso Entrega</h4>
                                                     <div className="flex-grow">
                                                         <ResponsiveContainer width="100%" height={250}>
-                                                            <BarChart data={stats?.familySizeData || []}>
-                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                                <XAxis dataKey="size" tick={{ fontSize: 10 }} />
-                                                                <YAxis allowDecimals={false} />
-                                                                <RechartsTooltip cursor={{ fill: 'transparent' }} />
-                                                                <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
-                                                            </BarChart>
+                                                            <PieChart>
+                                                                <Pie
+                                                                    data={stats?.deliveryProgressData || []}
+                                                                    cx="50%"
+                                                                    cy="50%"
+                                                                    innerRadius={60}
+                                                                    outerRadius={80}
+                                                                    paddingAngle={5}
+                                                                    dataKey="value"
+                                                                >
+                                                                    {(stats?.deliveryProgressData || []).map((entry, index) => (
+                                                                        <Cell key={`cell-${index}`} fill={entry.name === 'Entregados' ? '#16a34a' : '#94a3b8'} />
+                                                                    ))}
+                                                                </Pie>
+                                                                <RechartsTooltip />
+                                                                <Legend verticalAlign="bottom" height={36} />
+                                                            </PieChart>
                                                         </ResponsiveContainer>
+                                                    </div>
+                                                    <div className="text-center text-sm text-slate-500 mt-2">
+                                                        {stats?.deliveryProgressData.find(d => d.name === 'Entregados')?.value || 0} Entregados / {registrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} Total
                                                     </div>
                                                 </div>
 

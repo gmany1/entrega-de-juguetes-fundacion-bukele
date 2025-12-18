@@ -2012,6 +2012,65 @@ const AdminPanel: React.FC = () => {
                                                         <div className="flex-grow"></div>
                                                         <button
                                                             onClick={async () => {
+                                                                if (!confirm("Esto analizará todos los registros e importará automáticamente los distribuidores y sus rangos detectados. ¿Continuar?")) return;
+
+                                                                setIsLoading(true);
+                                                                try {
+                                                                    const inferredDistributors: Record<string, { start: number, end: number }> = {};
+
+                                                                    // 1. Analyze all registrations
+                                                                    normalizedRegistrations.forEach(r => {
+                                                                        if (r.ticketDistributor && r.ticketDistributor.trim()) {
+                                                                            const name = r.ticketDistributor.trim();
+                                                                            if (!inferredDistributors[name]) inferredDistributors[name] = { start: 999999, end: 0 };
+
+                                                                            r.children.forEach(c => {
+                                                                                const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
+                                                                                if (!isNaN(num) && num > 0) {
+                                                                                    inferredDistributors[name].start = Math.min(inferredDistributors[name].start, num);
+                                                                                    inferredDistributors[name].end = Math.max(inferredDistributors[name].end, num);
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                    });
+
+                                                                    // 2. Save only NEW ones (don't overwrite existing configs to prevent data loss)
+                                                                    let importedCount = 0;
+                                                                    const existingNames = new Set((config.ticketDistributors || []).map(d => d.name));
+
+                                                                    for (const [name, range] of Object.entries(inferredDistributors)) {
+                                                                        if (range.end > 0 && !existingNames.has(name)) {
+                                                                            await saveDistributor({
+                                                                                name: name,
+                                                                                startRange: range.start,
+                                                                                endRange: range.end,
+                                                                                phone: ''
+                                                                            });
+                                                                            importedCount++;
+                                                                        }
+                                                                    }
+
+                                                                    if (importedCount > 0) {
+                                                                        alert(`Se importaron ${importedCount} distribuidores nuevos basados en los registros.`);
+                                                                        window.location.reload();
+                                                                    } else {
+                                                                        alert("No se encontraron nuevos distribuidores para importar (o ya existen).");
+                                                                    }
+
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                    alert("Error al importar.");
+                                                                }
+                                                                setIsLoading(false);
+                                                            }}
+                                                            className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                                            title="Detectar rangos automáticamente desde los registros"
+                                                        >
+                                                            <Database className="w-4 h-4" /> Importar
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+
                                                                 if (newDistributorName.trim()) {
                                                                     setIsLoading(true);
                                                                     const res = await saveDistributor({

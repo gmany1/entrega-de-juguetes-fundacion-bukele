@@ -613,7 +613,7 @@ const AdminPanel: React.FC = () => {
     const [loginError, setLoginError] = useState('');
 
     const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats' | 'scanner' | 'users' | 'wa_list' | 'system'>('general');
-    const { config, updateConfig, resetConfig } = useConfig();
+    const { config, updateConfig, resetConfig, refreshConfig } = useConfig();
 
     const [localConfig, setLocalConfig] = useState<AppConfig>(config);
     const [hasChanges, setHasChanges] = useState(false);
@@ -2051,8 +2051,8 @@ const AdminPanel: React.FC = () => {
                                                                     }
 
                                                                     if (importedCount > 0) {
+                                                                        await refreshConfig();
                                                                         alert(`Se importaron ${importedCount} distribuidores nuevos basados en los registros.`);
-                                                                        window.location.reload();
                                                                     } else {
                                                                         alert("No se encontraron nuevos distribuidores para importar (o ya existen).");
                                                                     }
@@ -2081,8 +2081,11 @@ const AdminPanel: React.FC = () => {
                                                                     });
 
                                                                     if (res.success) {
-                                                                        // Force refresh
-                                                                        window.location.reload();
+                                                                        await refreshConfig();
+                                                                        setNewDistributorName('');
+                                                                        setNewDistributorPhone('');
+                                                                        setNewDistributorStart(0);
+                                                                        setNewDistributorEnd(0);
                                                                     } else {
                                                                         alert("Error: " + res.message);
                                                                     }

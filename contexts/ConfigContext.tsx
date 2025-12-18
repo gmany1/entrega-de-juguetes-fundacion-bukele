@@ -6,6 +6,7 @@ interface ConfigContextType {
   config: AppConfig;
   updateConfig: (newConfig: Partial<AppConfig>) => Promise<{ success: boolean; message?: string }>;
   resetConfig: () => void;
+  refreshConfig: () => Promise<{ success: boolean }>;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -16,19 +17,8 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
 
   // Load from LocalStorage AND Firebase
-  useEffect(() => {
-    // 1. LocalStorage (Cache)
-    const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (savedConfig) {
-      try {
-        setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
-      } catch (e) {
-        console.error("Failed to parse config", e);
-      }
-    }
-
-    // 2. Firebase (Source of Truth)
-    const fetchRemoteConfig = async () => {
+  const refreshConfig = async () => {
+    try {
       const remoteConfig = await getAppConfig();
       const distributors = await getDistributors();
 
@@ -44,8 +34,26 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           return merged;
         });
       }
-    };
-    fetchRemoteConfig();
+      return { success: true };
+    } catch (error) {
+      console.error("Error refreshing config", error);
+      return { success: false };
+    }
+  };
+
+  useEffect(() => {
+    // 1. LocalStorage (Cache)
+    const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (savedConfig) {
+      try {
+        setConfig(prev => ({ ...prev, ...JSON.parse(savedConfig) }));
+      } catch (e) {
+        console.error("Failed to parse config", e);
+      }
+    }
+
+    // 2. Firebase (Source of Truth)
+    refreshConfig();
   }, []);
 
   const updateConfig = async (newConfig: Partial<AppConfig>) => {
@@ -76,7 +84,7 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   return (
-    <ConfigContext.Provider value={{ config, updateConfig, resetConfig }}>
+    <ConfigContext.Provider value={{ config, updateConfig, resetConfig, refreshConfig }}>
       {children}
     </ConfigContext.Provider>
   );

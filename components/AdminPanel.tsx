@@ -816,18 +816,53 @@ const AdminPanel: React.FC = () => {
             count: ageCount[i] || 0
         }));
 
-        // 6. Distributor Stats
+        // 6. Distributor Stats (Range-Based Logic)
         const distCount: Record<string, number> = {};
-        normalizedRegistrations.forEach(r => {
-            const dist = r.ticketDistributor || 'No Asignado';
-            distCount[dist] = (distCount[dist] || 0) + r.children.length;
+
+        // Initialize counts for all configured distributors
+        (config.ticketDistributors || []).forEach(d => {
+            distCount[d.name] = 0;
         });
+        distCount['Otros / Sin Asignar'] = 0;
+
+        normalizedRegistrations.forEach(r => {
+            r.children.forEach(c => {
+                // Extract numeric ticket
+                const ticketNum = parseInt(c.inviteNumber.replace(/\D/g, '')) || 0;
+                let assigned = false;
+
+                if (ticketNum > 0) {
+                    // Find owner by range
+                    for (const dist of (config.ticketDistributors || [])) {
+                        if (dist.startRange && dist.endRange && ticketNum >= dist.startRange && ticketNum <= dist.endRange) {
+                            distCount[dist.name] = (distCount[dist.name] || 0) + 1;
+                            assigned = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!assigned) {
+                    // Fallback: If not in any range, use the text field IF it matches a known distributor?
+                    // Or just put in "Otros".
+                    // User wants "Synchronization", so if we put it in "Otros", it highlights the issue.
+                    // But maybe the user entered "Ingrid" manually for a ticket that has no range.
+                    // Let's try to respect the manual override if no range matches.
+                    if (r.ticketDistributor && distCount[r.ticketDistributor] !== undefined) {
+                        distCount[r.ticketDistributor]++;
+                    } else {
+                        distCount['Otros / Sin Asignar']++;
+                    }
+                }
+            });
+        });
+
         const distributorData = Object.entries(distCount)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
         return { genderData, municipalData, deliveryProgressData, timelineData, ageData, distributorData, redFlags };
-    }, [normalizedRegistrations]);
+    }, [normalizedRegistrations, config.ticketDistributors]);
 
     // Progress
     const progressPercentage = Math.min(100, Math.round((registrations.length / localConfig.maxRegistrations) * 100));

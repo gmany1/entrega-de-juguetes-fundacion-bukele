@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock } from 'lucide-react';
+import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -722,6 +722,20 @@ const AdminPanel: React.FC = () => {
         return [...modernRecords, ...groupedLegacy].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [registrations]);
 
+    // Helper to determine distributor for a SINGLE TICKET (Strict Logic)
+    const getDistributorForTicket = (inviteNumber: string | undefined, distributors: TicketDistributor[]): string => {
+        if (!inviteNumber) return 'Otros / Sin Asignar';
+        const ticketNum = parseInt(inviteNumber.replace(/\D/g, '')) || 0;
+
+        if (ticketNum > 0) {
+            const match = distributors.find(d =>
+                d.startRange && d.endRange && ticketNum >= d.startRange && ticketNum <= d.endRange
+            );
+            if (match) return match.name;
+        }
+        return 'Otros / Sin Asignar';
+    };
+
     // Statistics Data Processing (Consumed Normalized Data)
     const stats = useMemo(() => {
         // 1. Gender Distribution
@@ -816,10 +830,10 @@ const AdminPanel: React.FC = () => {
             count: ageCount[i] || 0
         }));
 
-        // 6. Distributor Stats (Range-Based Logic with Text Fallback)
+        // 6. Distributor Stats (STRICT TICKET LOGIC)
         const distCount: Record<string, number> = {};
 
-        // Initialize counts for all configured distributors
+        // Initialize counts
         (config.ticketDistributors || []).forEach(d => {
             distCount[d.name] = 0;
         });
@@ -827,34 +841,19 @@ const AdminPanel: React.FC = () => {
 
         normalizedRegistrations.forEach(r => {
             r.children.forEach(c => {
-                // Extract numeric ticket
-                const ticketNum = parseInt(c.inviteNumber.replace(/\D/g, '')) || 0;
-                let assigned = false;
+                // Determine owner of THIS specific ticket
+                const distName = getDistributorForTicket(c.inviteNumber, config.ticketDistributors || []);
 
-                if (ticketNum > 0) {
-                    // 1. Try to find owner by range (HIGHEST PRIORITY)
-                    for (const dist of (config.ticketDistributors || [])) {
-                        if (dist.startRange && dist.endRange && ticketNum >= dist.startRange && ticketNum <= dist.endRange) {
-                            distCount[dist.name] = (distCount[dist.name] || 0) + 1;
-                            assigned = true;
-                            break;
-                        }
-                    }
+                // If "Others" but parent has a manual override, maybe we should respect it?
+                // The user said "The code is what rules". So range first.
+                // Compatibility: If range didn't match ('Others'), but parent has text field, use that?
+                let finalDist = distName;
+                if (distName === 'Otros / Sin Asignar' && r.ticketDistributor) {
+                    finalDist = r.ticketDistributor;
                 }
 
-                if (!assigned) {
-                    // 2. Fallback: Use the text field from the registration (COMPATIBILITY MODE)
-                    if (r.ticketDistributor && r.ticketDistributor.trim() !== '') {
-                        const distName = r.ticketDistributor;
-                        // Initialize if it's a new name not in config
-                        if (distCount[distName] === undefined) {
-                            distCount[distName] = 0;
-                        }
-                        distCount[distName]++;
-                    } else {
-                        distCount['Otros / Sin Asignar']++;
-                    }
-                }
+                if (distCount[finalDist] === undefined) distCount[finalDist] = 0;
+                distCount[finalDist]++;
             });
         });
 
@@ -1055,31 +1054,33 @@ const AdminPanel: React.FC = () => {
 
     // Normalized Registrations was moved up to be available for stats.
 
-    // Distributor Control Logic
+    // Distributor Control Logic (Strict Range Audit)
     const distributorAudit = useMemo(() => {
         if (!config.ticketDistributors) return [];
 
+        // 1. Collect ALL registered ticket numbers from the entire database
+        const allRegisteredNumbers = new Set<number>();
+        normalizedRegistrations.forEach(r => {
+            r.children.forEach(c => {
+                const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
+                if (!isNaN(num)) allRegisteredNumbers.add(num);
+            });
+        });
+
+        // 2. Check each distributor's range against the collected numbers
         return config.ticketDistributors.map(dist => {
             const start = dist.startRange || 0;
             const end = dist.endRange || 0;
             const totalAssigned = (start > 0 && end > 0) ? (end - start + 1) : 0;
 
-            // Find all tickets registered for this distributor
-            // Using NORMALIZED data to catch everything
-            const relevantRegs = normalizedRegistrations.filter(r => r.ticketDistributor === dist.name);
-
-            const registeredTicketNumbers = new Set<number>();
-            relevantRegs.forEach(r => {
-                r.children.forEach(c => {
-                    const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
-                    if (!isNaN(num)) registeredTicketNumbers.add(num);
-                });
-            });
-
             const missingTickets: number[] = [];
+            let inRangeCount = 0;
+
             if (totalAssigned > 0) {
                 for (let i = start; i <= end; i++) {
-                    if (!registeredTicketNumbers.has(i)) {
+                    if (allRegisteredNumbers.has(i)) {
+                        inRangeCount++;
+                    } else {
                         missingTickets.push(i);
                     }
                 }
@@ -1088,13 +1089,9 @@ const AdminPanel: React.FC = () => {
             return {
                 name: dist.name,
                 range: `${start} - ${end}`,
-                assignedCount: totalAssigned,
-                registeredCount: registeredTicketNumbers.size, // Only count those strictly in range? Or all attributed to him?
-                // Let's count all attributed to him for "Registered", but "Missing" is strictly from range.
-                // Actually, "registeredCount" usually means "how many of his range are taken".
-                // But wait, if he registered ticket #999 (out of range), it should be flagged elsewhere.
-                // For this view "Control", let's stick to Range Audit.
-                inRangeCount: Array.from(registeredTicketNumbers).filter(n => n >= start && n <= end).length,
+                totalAssigned,
+                inRangeCount,
+                percent: totalAssigned > 0 ? Math.round((inRangeCount / totalAssigned) * 100) : 0,
                 missingTickets
             };
         });
@@ -1105,11 +1102,21 @@ const AdminPanel: React.FC = () => {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
 
-        // 1. Filter Data
+        // 1. Filter Data (STRICT LOGIC: Only tickets belonging to this distributor)
         const relevantChildren: { invite: string, name: string, age: number, gender: string, parent: string }[] = [];
+
         normalizedRegistrations.forEach(reg => {
-            if (reg.ticketDistributor === distributor.name) {
-                reg.children.forEach(child => {
+            reg.children.forEach(child => {
+                // Check if THIS SPECIFIC TICKET belongs to the distributor
+                const ownerName = getDistributorForTicket(child.inviteNumber, config.ticketDistributors || []);
+
+                // Also handle the fallback text case if it matches this distributor name
+                let finalOwner = ownerName;
+                if (ownerName === 'Otros / Sin Asignar' && reg.ticketDistributor === distributor.name) {
+                    finalOwner = distributor.name;
+                }
+
+                if (finalOwner === distributor.name) {
                     relevantChildren.push({
                         invite: child.inviteNumber,
                         name: child.fullName,
@@ -1117,8 +1124,8 @@ const AdminPanel: React.FC = () => {
                         gender: child.gender,
                         parent: reg.parentName || reg.fullName || 'N/A'
                     });
-                });
-            }
+                }
+            });
         });
 
         // 2. Sort by Ticket Number
@@ -1130,67 +1137,82 @@ const AdminPanel: React.FC = () => {
 
         // 3. Header
         doc.setFontSize(18);
-        doc.text("Control de Entrega - Distribuidor", pageWidth / 2, 15, { align: "center" });
+        doc.text("Control de Distribución", pageWidth / 2, 15, { align: "center" });
 
         doc.setFontSize(14);
         doc.setTextColor(100);
-        doc.text(distributor.name, pageWidth / 2, 22, { align: "center" });
+        doc.text(`${distributor.name}`, pageWidth / 2, 22, { align: "center" });
 
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        let headerText = `Total Tickets: ${relevantChildren.length}`;
         if (distributor.startRange && distributor.endRange) {
-            doc.setFontSize(10);
-            doc.text(`Rango Asignado: #${distributor.startRange} - #${distributor.endRange}`, pageWidth / 2, 28, { align: "center" });
+            headerText = `Rango: ${distributor.startRange} - ${distributor.endRange} | ` + headerText;
         }
-
-        doc.text(`Total Asignados: ${relevantChildren.length}`, pageWidth / 2, 33, { align: "center" });
+        doc.text(headerText, pageWidth / 2, 28, { align: "center" });
+        doc.text(`Generado: ${new Date().toLocaleString()}`, pageWidth / 2, 33, { align: "center" });
 
         // 4. Table Header
-        let y = 40;
-        const colX = { ticket: 14, name: 40, age: 100, parent: 120, check: 180 };
+        let y = 45; // Increased spacing from top
+        const colX = { ticket: 14, state: 35, name: 65, age: 130, parent: 155, phone: 210 }; // Adjusted columns
 
+        // Background for Header
         doc.setFillColor(240, 240, 240);
         doc.rect(10, y - 5, pageWidth - 20, 8, 'F');
+
         doc.setFontSize(9);
         doc.setTextColor(0);
         doc.setFont("helvetica", "bold");
 
         doc.text("Ticket", colX.ticket, y);
-        doc.text("Niño/a", colX.name, y);
-        doc.text("Edad", colX.age, y);
+        doc.text("Estado", colX.state, y);
+        doc.text("Beneficiario", colX.name, y);
+        doc.text("Edad/Sex", colX.age, y);
         doc.text("Responsable", colX.parent, y);
-        doc.text("Firma", colX.check, y);
+        // doc.text("Teléfono", colX.phone, y); // Phone might be too wide, maybe just Parent Name
 
-        y += 8;
+        y += 10; // More space after header
 
         // 5. Table Rows
         doc.setFont("helvetica", "normal");
         relevantChildren.forEach((child, index) => {
-            if (y > 280) {
+            if (y > 270) {
                 doc.addPage();
                 y = 20;
             }
 
             // Zebra striping
             if (index % 2 === 1) {
-                doc.setFillColor(250, 250, 250);
-                doc.rect(10, y - 4, pageWidth - 20, 7, 'F');
+                doc.setFillColor(252, 252, 252);
+                doc.rect(10, y - 5, pageWidth - 20, 8, 'F');
             }
 
+            // Ticket
+            doc.setFont("helvetica", "bold");
             doc.text(child.invite, colX.ticket, y);
 
-            // Truncate names if too long
-            const childName = child.name.length > 35 ? child.name.substring(0, 32) + '...' : child.name;
+            // Status (Mocked as Registered for now as that's what it is)
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(0, 128, 0); // Green
+            doc.text("REGISTRADO", colX.state, y);
+            doc.setTextColor(0);
+
+            // Child Name
+            const childName = child.name.length > 28 ? child.name.substring(0, 25) + '...' : child.name;
             doc.text(childName, colX.name, y);
 
-            doc.text(`${child.age} ${child.gender === 'Niña' ? 'A' : 'O'}`, colX.age, y);
+            // Age / Gender (Better Format)
+            // "4 / Niño" instead of "4 / N"
+            const genderFull = child.gender === 'Niña' ? 'Niña' : 'Niño';
+            doc.text(`${child.age} / ${genderFull}`, colX.age, y);
 
-            const parentName = child.parent.length > 30 ? child.parent.substring(0, 27) + '...' : child.parent;
+            // Parent Name (Responsable)
+            const parentName = child.parent.length > 25 ? child.parent.substring(0, 22) + '...' : child.parent;
             doc.text(parentName, colX.parent, y);
 
-            // Draw checkbox/line for signature
-            doc.setLineWidth(0.1);
-            doc.line(colX.check, y, colX.check + 20, y);
+            // Phone (Optional, if we have space, currently omitted to fit neatly)
 
-            y += 7;
+            y += 8; // Row height
         });
 
         doc.save(`Control_${distributor.name.replace(/\s+/g, '_')}.pdf`);
@@ -1227,29 +1249,49 @@ const AdminPanel: React.FC = () => {
 
     const groupedRegistrations = useMemo(() => {
         const groups: Record<string, Registration[]> = {};
-        // Use all filtered registrations (no limit)
         const displayList = filteredRegistrations;
 
         displayList.forEach(reg => {
-            const key = reg.ticketDistributor || 'Sin Distribuidor';
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(reg);
-        });
+            // MULTI-ASSIGNMENT LOGIC
+            // A family can belong to multiple distributors if they have mixed tickets.
+            const distributorsFound = new Set<string>();
 
-        // Smart Sort: By Total Tickets (Ascending: Fewest Tickets First)
-        return Object.entries(groups).sort((a, b) => {
-            const totalTicketsA = a[1].reduce((acc, r) => acc + r.childCount, 0);
-            const totalTicketsB = b[1].reduce((acc, r) => acc + r.childCount, 0);
+            reg.children.forEach(c => {
+                let dName = getDistributorForTicket(c.inviteNumber, config.ticketDistributors || []);
+                // Fallback for tickets out of range but with manual text
+                if (dName === 'Otros / Sin Asignar' && reg.ticketDistributor) {
+                    dName = reg.ticketDistributor;
+                }
+                distributorsFound.add(dName);
+            });
 
-            // 1. Primary Sort: Total Tickets (Low to High)
-            if (totalTicketsA !== totalTicketsB) {
-                return totalTicketsA - totalTicketsB;
+            // If no children (legacy edge case with 0 kids?), use text
+            if (reg.children.length === 0 && reg.ticketDistributor) {
+                distributorsFound.add(reg.ticketDistributor);
             }
+            // If still empty (no kids, no text), "Otros"
+            if (distributorsFound.size === 0) distributorsFound.add('Otros / Sin Asignar');
 
-            // 2. Secondary Sort: Distributor Name (A-Z)
-            return a[0].localeCompare(b[0]);
+            distributorsFound.forEach(distName => {
+                if (!groups[distName]) groups[distName] = [];
+                groups[distName].push(reg);
+            });
         });
-    }, [filteredRegistrations]);
+
+        // Smart Sort: By Total Tickets IN THAT GROUP (High to Low)
+        return Object.entries(groups).map(([distName, regs]) => {
+            // Calculate how many tickets in this group actually belong to this distributor
+            // This is needed for the sort and the UI badge
+            const relevantTickets = regs.reduce((acc, r) => {
+                return acc + r.children.filter(c => {
+                    let d = getDistributorForTicket(c.inviteNumber, config.ticketDistributors || []);
+                    if (d === 'Otros / Sin Asignar' && r.ticketDistributor) d = r.ticketDistributor;
+                    return d === distName;
+                }).length;
+            }, 0);
+            return { distName, regs, relevantTickets };
+        }).sort((a, b) => b.relevantTickets - a.relevantTickets); // Sort by volume
+    }, [filteredRegistrations, config.ticketDistributors]);
 
 
     // Collapsible Logic
@@ -1863,7 +1905,15 @@ const AdminPanel: React.FC = () => {
                                     <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<MessageSquare size={18} />} label="Envíos WhatsApp" />
                                 )}
                             </div>
-                            <div className="p-4 mt-auto border-t border-slate-200 space-y-2">
+                            <button
+                                onClick={() => setActiveTab('audit')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'audit' ? 'bg-blue-600 text-white shadow-blue-200 shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                            >
+                                <ClipboardCheck size={20} />
+                                <span className="font-medium">Auditoría</span>
+                            </button>
+
+                            <div className="pt-4 mt-4 border-t border-slate-100 space-y-2">
                                 <div className="px-4 py-2 text-xs text-slate-500 font-mono">
                                     {currentUser?.username}
                                 </div>
@@ -1946,7 +1996,10 @@ const AdminPanel: React.FC = () => {
                                                 />
                                                 <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
                                                     <span className={`w-2 h-2 rounded-full ${registrationCount >= localConfig.maxRegistrations ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                                                    Actualmente: <span className="font-semibold">{registrationCount}</span> registros.
+                                                    Actualmente: <span className="font-semibold">{registrationCount}</span> familias
+                                                    <span className="font-bold text-blue-600 ml-1">
+                                                        ({normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)} Juguetes)
+                                                    </span>
                                                 </p>
                                             </div>
 
@@ -2484,19 +2537,26 @@ const AdminPanel: React.FC = () => {
                                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                                 <div className="flex justify-between items-end mb-2">
                                                     <div>
-                                                        <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Registros</h4>
-                                                        <div className="text-3xl font-bold text-slate-800 mt-1">{registrations.length} <span className="text-lg text-slate-400 font-normal">/ {config.maxRegistrations}</span></div>
+                                                        <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Juguetes / Tickets</h4>
+                                                        <div className="text-3xl font-bold text-slate-800 mt-1">
+                                                            {normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)}
+                                                            <span className="text-lg text-slate-400 font-normal"> / {config.maxRegistrations}</span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${progressPercentage >= 100 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                            {progressPercentage}%
+                                                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
+                                                                ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                            }`}>
+                                                            {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%
                                                         </span>
                                                     </div>
                                                 </div>
                                                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                                                     <div
-                                                        className={`h-full rounded-full transition-all duration-1000 ${progressPercentage >= 100 ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'}`}
-                                                        style={{ width: `${progressPercentage}%` }}
+                                                        className={`h-full rounded-full transition-all duration-1000 ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
+                                                                ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
+                                                            }`}
+                                                        style={{ width: `${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%` }}
                                                     ></div>
                                                 </div>
                                             </div>
@@ -2728,7 +2788,8 @@ const AdminPanel: React.FC = () => {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(([distributor, regs]) => {
+                                                            {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
+                                                                const distributor = distName;
                                                                 const isExpanded = expandedGroups.has(distributor);
                                                                 return (
                                                                     <React.Fragment key={distributor}>
@@ -2749,7 +2810,7 @@ const AdminPanel: React.FC = () => {
                                                                                             {regs.length} Familias
                                                                                         </span>
                                                                                         <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                            {regs.reduce((acc, curr) => acc + (curr.children?.length || curr.childCount || 0), 0)} Juguetes
+                                                                                            {relevantTickets} Juguetes  {/* USES PRE-CALCULATED RELEVANT SUM */}
                                                                                         </span>
                                                                                         <button
                                                                                             onClick={(e) => { e.stopPropagation(); handleExportPDF(regs, distributor); }}
@@ -2908,7 +2969,8 @@ const AdminPanel: React.FC = () => {
                                                 <div className="md:hidden">
                                                     <div className="divide-y divide-slate-100">
                                                         <div className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(([distributor, regs]) => {
+                                                            {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
+                                                                const distributor = distName;
                                                                 const isExpanded = expandedGroups.has(distributor);
                                                                 return (
                                                                     <React.Fragment key={distributor}>
@@ -2923,7 +2985,7 @@ const AdminPanel: React.FC = () => {
                                                                                         {regs.length} Fam
                                                                                     </span>
                                                                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                        {regs.reduce((acc, curr) => acc + curr.childCount, 0)} Jug
+                                                                                        {relevantTickets} Jug
                                                                                     </span>
                                                                                 </div>
                                                                             </div>
@@ -3063,6 +3125,64 @@ const AdminPanel: React.FC = () => {
                             }
 
 
+
+                            {activeTab === 'audit' && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <SectionHeader title="Auditoría de Tickets" description="Control de faltantes por rango y distribuidor." />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {distributorAudit.map((audit) => (
+                                            <div key={audit.name} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                                                <div className="p-5 border-b border-slate-100">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h4 className="font-bold text-slate-800 text-lg">{audit.name}</h4>
+                                                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-mono">
+                                                            {audit.range}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between text-sm text-slate-600">
+                                                            <span>Progreso</span>
+                                                            <span className="font-bold">{audit.inRangeCount} / {audit.totalAssigned}</span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full ${audit.percent === 100 ? 'bg-green-500' : 'bg-blue-600'}`}
+                                                                style={{ width: `${audit.percent}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-0 flex-grow bg-slate-50/50">
+                                                    <details className="group">
+                                                        <summary className="p-4 cursor-pointer text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex justify-between items-center">
+                                                            <span>Ver Tickets Faltantes ({audit.missingTickets.length})</span>
+                                                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                                                        </summary>
+                                                        <div className="px-4 pb-4">
+                                                            {audit.missingTickets.length > 0 ? (
+                                                                <div className="mt-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border border-slate-200">
+                                                                    {audit.missingTickets.map(num => (
+                                                                        <span key={num} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-mono border border-red-100">
+                                                                            {num}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-center text-green-600 text-sm py-4 bg-green-50 rounded border border-green-100 mt-2">
+                                                                    ¡Completo! Todos los tickets registrados.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </details>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {
                                 activeTab === 'wa_list' && (

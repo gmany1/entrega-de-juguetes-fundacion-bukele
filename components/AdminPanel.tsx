@@ -2791,9 +2791,12 @@ const AdminPanel: React.FC = () => {
                                                                                         {reg.children && reg.children.length > 0 ? (
                                                                                             <div className="space-y-1">
                                                                                                 {reg.children.map((child, idx) => (
-                                                                                                    <div key={idx} className="flex items-center justify-between text-xs bg-white border border-slate-200 p-1.5 rounded gap-2">
+                                                                                                    <div key={idx} className={`flex items-center justify-between text-xs border p-1.5 rounded gap-2 ${child.status === 'delivered' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'}`}>
                                                                                                         <div className="flex flex-col">
-                                                                                                            <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
+                                                                                                            <div className="flex items-center gap-1">
+                                                                                                                <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
+                                                                                                                {child.status === 'delivered' && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded-full font-medium">Entregado</span>}
+                                                                                                            </div>
                                                                                                             <span className="text-[10px] text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</span>
                                                                                                         </div>
                                                                                                         <button

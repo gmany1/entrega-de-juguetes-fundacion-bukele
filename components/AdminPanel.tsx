@@ -2678,7 +2678,9 @@ const AdminPanel: React.FC = () => {
                                                 <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                                                     <div>
                                                         <h4 className="font-semibold text-slate-800">Registros Recientes</h4>
-                                                        <span className="text-xs text-slate-500">Mostrando {filteredRegistrations.length} registros</span>
+                                                        <span className="text-xs text-slate-500">
+                                                            Mostrando {filteredRegistrations.length} familias ({filteredRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} tickets)
+                                                        </span>
                                                     </div>
 
                                                     <div className="flex items-center gap-2 w-full sm:w-auto">

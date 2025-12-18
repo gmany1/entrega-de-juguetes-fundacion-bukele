@@ -816,7 +816,7 @@ const AdminPanel: React.FC = () => {
             count: ageCount[i] || 0
         }));
 
-        // 6. Distributor Stats (Range-Based Logic)
+        // 6. Distributor Stats (Range-Based Logic with Text Fallback)
         const distCount: Record<string, number> = {};
 
         // Initialize counts for all configured distributors
@@ -832,7 +832,7 @@ const AdminPanel: React.FC = () => {
                 let assigned = false;
 
                 if (ticketNum > 0) {
-                    // Find owner by range
+                    // 1. Try to find owner by range (HIGHEST PRIORITY)
                     for (const dist of (config.ticketDistributors || [])) {
                         if (dist.startRange && dist.endRange && ticketNum >= dist.startRange && ticketNum <= dist.endRange) {
                             distCount[dist.name] = (distCount[dist.name] || 0) + 1;
@@ -843,13 +843,14 @@ const AdminPanel: React.FC = () => {
                 }
 
                 if (!assigned) {
-                    // Fallback: If not in any range, use the text field IF it matches a known distributor?
-                    // Or just put in "Otros".
-                    // User wants "Synchronization", so if we put it in "Otros", it highlights the issue.
-                    // But maybe the user entered "Ingrid" manually for a ticket that has no range.
-                    // Let's try to respect the manual override if no range matches.
-                    if (r.ticketDistributor && distCount[r.ticketDistributor] !== undefined) {
-                        distCount[r.ticketDistributor]++;
+                    // 2. Fallback: Use the text field from the registration (COMPATIBILITY MODE)
+                    if (r.ticketDistributor && r.ticketDistributor.trim() !== '') {
+                        const distName = r.ticketDistributor;
+                        // Initialize if it's a new name not in config
+                        if (distCount[distName] === undefined) {
+                            distCount[distName] = 0;
+                        }
+                        distCount[distName]++;
                     } else {
                         distCount['Otros / Sin Asignar']++;
                     }

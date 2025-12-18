@@ -1,15 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Sparkles, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, LayoutTemplate, Search, CheckCircle } from 'lucide-react';
+import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
-import ScanInterface from './ScanInterface';
 import { GoogleGenAI } from "@google/genai";
-import { getRegistrations, deleteRegistration, clearAllRegistrations, authenticateUser, getSystemUsers, saveSystemUser, deleteSystemUser, updateRegistration, initDefaultAdmin, saveDistributor, deleteDistributor } from '../services/storageService';
-import { useConfig } from '../contexts/ConfigContext';
 import { jsPDF } from "jspdf";
-import QRCode from "qrcode";
+import ScanInterface from './ScanInterface';
+
 import { AppConfig, DEPARTMENTS, Registration, SystemUser, Child } from '../types';
+import { useConfig } from '../contexts/ConfigContext';
+import {
+    initDefaultAdmin,
+    getSystemUsers,
+    saveSystemUser,
+    deleteSystemUser,
+    getDistributors,
+    saveDistributor,
+    deleteDistributor,
+    deleteRegistration,
+    getRegistrations,
+    updateRegistration,
+    updateChildStatus,
+    getFullDatabaseDump,
+    restoreDatabaseDump,
+    clearAllRegistrations,
+    saveAppConfig,
+    authenticateUser
+} from '../services/storageService';
 
 export interface TicketDistributor {
     name: string;
@@ -349,7 +366,135 @@ const UsersManagementTab = () => {
     );
 };
 
-// CRM Edit Modal Component
+// --- System Backup Component ---
+
+const SystemBackupTab = () => {
+    const [isRestoring, setIsRestoring] = useState(false);
+
+    const handleDownloadBackup = async () => {
+        try {
+            const dump = await getFullDatabaseDump();
+            const jsonString = JSON.stringify(dump, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_juguetes_${new Date().toISOString().split('T')[0]}_${new Date().getTime()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert("Error al generar respaldo: " + e);
+        }
+    };
+
+    const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+
+                // Security Check
+                const confirmation = prompt("⚠️ PELIGRO CRÍTICO ⚠️\n\nEstás a punto de RESTAURAR una copia de seguridad.\nESTO BORRARÁ TODOS LOS DATOS ACTUALES y los reemplazará con los del archivo.\n\nPara confirmar, escribe: RESTAURAR");
+
+                if (confirmation === 'RESTAURAR') {
+                    setIsRestoring(true);
+                    const res = await restoreDatabaseDump(json);
+                    setIsRestoring(false);
+
+                    if (res.success) {
+                        alert("✅ Restauración completada con éxito. La página se recargará.");
+                        window.location.reload();
+                    } else {
+                        alert("❌ Error al restaurar: " + res.message);
+                    }
+                } else {
+                    alert("Restauración cancelada.");
+                }
+
+            } catch (err) {
+                alert("Error al leer el archivo de respaldo. Asegúrate que sea un JSON válido.");
+                setIsRestoring(false);
+            }
+        };
+        reader.readAsText(file);
+        // Reset input
+        e.target.value = '';
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in pb-20">
+            <SectionHeader title="Sistemas y Respaldos" description="Gestión de copias de seguridad y recuperación ante desastres." />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Backup Card */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center text-blue-600 mb-4">
+                        <Download size={24} />
+                    </div>
+                    <h4 className="font-bold text-lg text-slate-800 mb-2">Crear Respaldo</h4>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Descarga una copia completa de la base de datos (Registros, Usuarios, Configuración) en formato JSON.
+                        Guarda este archivo en un lugar seguro.
+                    </p>
+                    <button
+                        onClick={handleDownloadBackup}
+                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Database size={18} /> Descargar Respaldo JSON
+                    </button>
+                </div>
+
+                {/* Restore Card */}
+                <div className="bg-white p-6 rounded-xl border border-red-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">
+                        ZONA DE PELIGRO
+                    </div>
+                    <div className="bg-red-50 w-12 h-12 rounded-full flex items-center justify-center text-red-600 mb-4">
+                        <Upload size={24} />
+                    </div>
+                    <h4 className="font-bold text-lg text-slate-800 mb-2">Restaurar Sistema</h4>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Sube un archivo de respaldo (.json) para restaurar el sistema.
+                        <br /><span className="font-bold text-red-600">ADVERTENCIA: Esto borrará todos los datos actuales.</span>
+                    </p>
+
+                    <label className={`w-full py-2 ${isRestoring ? 'bg-slate-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 cursor-pointer'} text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 text-center`}>
+                        {isRestoring ? (
+                            <><Loader2 className="animate-spin" size={18} /> Restaurando...</>
+                        ) : (
+                            <><RotateCcw size={18} /> Restaurar desde Archivo</>
+                        )}
+                        <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleRestoreBackup}
+                            disabled={isRestoring}
+                            className="hidden"
+                        />
+                    </label>
+                </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-6">
+                <h5 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
+                    <Info size={16} /> Protocolo de Emergencia
+                </h5>
+                <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
+                    <li>Realice respaldos periódicos (ej. al finalizar cada día).</li>
+                    <li>Si el sistema falla, intente recargar la página primero.</li>
+                    <li>Si los datos están corruptos, use la opción de "Restaurar" con el último respaldo válido.</li>
+                    <li>Este proceso solo restaura datos, no el código de la aplicación.</li>
+                </ul>
+            </div>
+        </div>
+    );
+};
 const EditRegistrationModal = ({ registration, onClose, onSave }: { registration: Registration, onClose: () => void, onSave: (id: string, data: Partial<Registration>) => Promise<void> }) => {
     const [formData, setFormData] = useState({ ...registration });
     const [loading, setLoading] = useState(false);
@@ -467,7 +612,7 @@ const AdminPanel: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
 
-    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats' | 'scanner' | 'users' | 'wa_list'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats' | 'scanner' | 'users' | 'wa_list' | 'system'>('general');
     const { config, updateConfig, resetConfig } = useConfig();
 
     const [localConfig, setLocalConfig] = useState<AppConfig>(config);
@@ -533,44 +678,89 @@ const AdminPanel: React.FC = () => {
     const [newDistributorStart, setNewDistributorStart] = useState<number>(0);
     const [newDistributorEnd, setNewDistributorEnd] = useState<number>(0);
 
-    // Statistics Data Processing
+
+    // Normalization Logic: Group Legacy Records by WhatsApp
+    const normalizedRegistrations = useMemo(() => {
+        const legacyGroups: Record<string, Registration[]> = {}; // Key: whatsapp
+        const modernRecords: Registration[] = [];
+
+        registrations.forEach(reg => {
+            if (reg.children && reg.children.length > 0) {
+                modernRecords.push(reg);
+            } else {
+                // Legacy Record
+                // Sanitize WhatsApp for grouping (remove spaces, dashes, etc.)
+                const rawWa = reg.whatsapp || '';
+                const key = rawWa.replace(/\D/g, '') || 'unknown';
+
+                if (!legacyGroups[key]) legacyGroups[key] = [];
+                legacyGroups[key].push(reg);
+            }
+        });
+
+        const groupedLegacy: Registration[] = Object.entries(legacyGroups).map(([wa, group]) => {
+            const first = group[0];
+            return {
+                ...first,
+                id: `legacy_group_${wa}`, // Virtual ID
+                children: group.map((g, idx) => ({
+                    id: g.id,
+                    // Use updated fields or fallback to legacy top-level fields
+                    inviteNumber: g.inviteNumber || '???',
+                    fullName: g.fullName || 'Niño (Legacy)',
+                    age: g.childAge || 0,
+                    gender: g.genderSelection || 'N/A',
+                    // Logic for legacy status: if we don't have it, assume pending. 
+                    // In future we could check db for specific child status if migrated.
+                    status: 'pending' as const
+                })),
+                childCount: group.length,
+                timestamp: group.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp
+            };
+        });
+
+        return [...modernRecords, ...groupedLegacy].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [registrations]);
+
+    // Statistics Data Processing (Consumed Normalized Data)
     const stats = useMemo(() => {
         // 1. Gender Distribution
         const genderData = [
             {
                 name: 'Niños',
-                value: registrations.reduce((acc, r) => {
-                    if (r.children && r.children.length > 0) {
-                        return acc + r.children.filter(c => c.gender === 'Niño').length;
-                    }
-                    // Legacy fallback
-                    const g = (r.genderSelection || '').toLowerCase();
-                    return acc + (g.includes('niño') || g.includes('nino') ? (r.childCount || 0) : 0);
+                value: normalizedRegistrations.reduce((acc, r) => {
+                    return acc + (r.children || []).filter(c => c.gender === 'Niño' || (c.gender || '').toLowerCase().includes('niño')).length;
                 }, 0)
             },
             {
                 name: 'Niñas',
-                value: registrations.reduce((acc, r) => {
-                    if (r.children && r.children.length > 0) {
-                        return acc + r.children.filter(c => c.gender === 'Niña').length;
-                    }
-                    const g = (r.genderSelection || '').toLowerCase();
-                    return acc + (g.includes('niña') || g.includes('nina') ? (r.childCount || 0) : 0);
+                value: normalizedRegistrations.reduce((acc, r) => {
+                    return acc + (r.children || []).filter(c => c.gender === 'Niña' || (c.gender || '').toLowerCase().includes('niña')).length;
                 }, 0)
             },
             {
                 name: 'Mixto/Otro',
-                value: registrations.reduce((acc, r) => {
-                    if (r.children && r.children.length > 0) return acc; // Counted in individual buckets
-                    const g = (r.genderSelection || '').toLowerCase();
-                    return acc + (g.includes('ambos') || g.includes('mixto') ? (r.childCount || 0) : 0);
+                value: normalizedRegistrations.reduce((acc, r) => {
+                    // For pure mixed we might need to check parent if it was an aggregate, but with normalized children we count individuals.
+                    // The chart expects aggregated "Mixto" which doesn't make sense if we break down by child.
+                    // But if the user wants "Families with Mixed", that's different.
+                    // The original logic counted "Mixto" gender selection.
+                    // If we are strictly counting children, they are either Boy or Girl. 
+                    // We will leave this 0 or repurposed if needed, but for now strict binary count based on children is better.
+                    // Actually, some legacy records *literal gender* is "Mixto" (pack of toys).
+                    // If child.gender is "Mixto", count it here.
+                    return acc + (r.children || []).filter(c =>
+                        !['Niño', 'Niña'].includes(c.gender) &&
+                        !c.gender.toLowerCase().includes('niño') &&
+                        !c.gender.toLowerCase().includes('niña')
+                    ).length;
                 }, 0)
             }
         ].filter(d => d.value > 0);
 
         // 2. Top Municipalities
         const muniCount: Record<string, number> = {};
-        registrations.forEach(r => {
+        normalizedRegistrations.forEach(r => {
             const muni = r.municipality || 'Desconocido';
             muniCount[muni] = (muniCount[muni] || 0) + 1;
         });
@@ -579,25 +769,15 @@ const AdminPanel: React.FC = () => {
             .sort((a, b) => b.value - a.value)
             .slice(0, 5);
 
-        // 3. Family Size Distribution
-        // 3. Delivery Progress (Delivered vs Pending)
+        // 3. Delivery Progress
         let totalTickets = 0;
         let deliveredTickets = 0;
 
-        registrations.forEach(r => {
-            if (r.children && r.children.length > 0) {
-                r.children.forEach(c => {
-                    totalTickets++;
-                    if (c.status === 'delivered') deliveredTickets++;
-                });
-            } else {
-                // Legacy
-                const count = r.childCount || 1;
-                totalTickets += count;
-                // Legacy records don't track status well unless we add it, assuming pending for now or check if whole reg is marked?
-                // Current model doesn't have 'status' on reg, only children.
-                // So we assume 0 delivered for legacy unless we add logic.
-            }
+        normalizedRegistrations.forEach(r => {
+            r.children.forEach(c => {
+                totalTickets++;
+                if (c.status === 'delivered') deliveredTickets++;
+            });
         });
 
         const deliveryProgressData = [
@@ -605,76 +785,49 @@ const AdminPanel: React.FC = () => {
             { name: 'Pendientes', value: totalTickets - deliveredTickets }
         ].filter(d => d.value > 0);
 
-        // Calculate Family Size for Red Flags (Re-implemented for internal use)
-        const familySizeCountsByPhone: Record<string, number> = {};
-        registrations.forEach(r => {
-            const phone = r.whatsapp?.trim() || 'unknown';
-            if (phone !== 'unknown') {
-                familySizeCountsByPhone[phone] = (familySizeCountsByPhone[phone] || 0) + (r.children?.length || r.childCount || 0);
-            } else {
-                familySizeCountsByPhone[`unknown_${r.id}`] = (r.children?.length || r.childCount || 0);
-            }
-        });
+        // 7. Red Flags (Phones with > 3 children)
+        // Normalized regs already group legacy by phone, so we just check r.children.length
+        const redFlags = normalizedRegistrations
+            .filter(r => r.children.length > 3)
+            .map(r => ({ phone: r.whatsapp || 'unknown', count: r.children.length }))
+            .sort((a, b) => b.count - a.count);
 
-        // 4. Registration Timeline (Sorted Chronologically)
+        // 4. Timeline
         const timelineMap: Record<string, { count: number, label: string }> = {};
-
-        registrations.forEach(r => {
+        normalizedRegistrations.forEach(r => {
             const d = new Date(r.timestamp);
-            const key = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : 'Invalid Date'; // Sortable Key: 2023-12-24
-            const label = d.toLocaleDateString('es-SV', { month: 'short', day: 'numeric' }); // Display: 24 dic
-
-            if (!timelineMap[key]) {
-                timelineMap[key] = { count: 0, label };
-            }
+            const key = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : 'Invalid Date';
+            const label = d.toLocaleDateString('es-SV', { month: 'short', day: 'numeric' });
+            if (!timelineMap[key]) timelineMap[key] = { count: 0, label };
             timelineMap[key].count++;
         });
-
-        const timelineData = Object.entries(timelineMap)
-            .sort((a, b) => a[0].localeCompare(b[0])) // Sort by date key
-            .map(([_, val]) => ({ date: val.label, count: val.count }));
+        const timelineData = Object.entries(timelineMap).sort((a, b) => a[0].localeCompare(b[0])).map(([_, val]) => ({ date: val.label, count: val.count }));
 
         // 5. Age Distribution
         const ageCount: Record<number, number> = {};
-        registrations.forEach(r => {
-            if (r.children && r.children.length > 0) {
-                r.children.forEach(c => {
-                    if (c.age !== undefined) {
-                        ageCount[c.age] = (ageCount[c.age] || 0) + 1;
-                    }
-                });
-            } else if (r.childAge !== undefined && r.childAge !== null) {
-                // Legacy
-                ageCount[r.childAge] = (ageCount[r.childAge] || 0) + 1;
-            }
+        normalizedRegistrations.forEach(r => {
+            r.children.forEach(c => {
+                const a = c.age !== undefined ? c.age : 0;
+                ageCount[a] = (ageCount[a] || 0) + 1;
+            });
         });
         const ageData = Array.from({ length: 13 }, (_, i) => ({
             age: `${i} años`,
             count: ageCount[i] || 0
         }));
 
-
-        // 6. Distributor Stats (All distributors, sorted by performance)
+        // 6. Distributor Stats
         const distCount: Record<string, number> = {};
-        registrations.forEach(r => {
+        normalizedRegistrations.forEach(r => {
             const dist = r.ticketDistributor || 'No Asignado';
-            // Count total children
-            const count = (r.children && r.children.length > 0) ? r.children.length : (r.childCount || 0);
-            distCount[dist] = (distCount[dist] || 0) + count;
+            distCount[dist] = (distCount[dist] || 0) + r.children.length;
         });
-
         const distributorData = Object.entries(distCount)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        // 7. Red Flags (Phones with > 3 children)
-        const redFlags = Object.entries(familySizeCountsByPhone)
-            .filter(([phone, count]) => count > 3 && !phone.startsWith('unknown_'))
-            .map(([phone, count]) => ({ phone, count }))
-            .sort((a, b) => b.count - a.count);
-
         return { genderData, municipalData, deliveryProgressData, timelineData, ageData, distributorData, redFlags };
-    }, [registrations]);
+    }, [normalizedRegistrations]);
 
     // Progress
     const progressPercentage = Math.min(100, Math.round((registrations.length / localConfig.maxRegistrations) * 100));
@@ -706,24 +859,36 @@ const AdminPanel: React.FC = () => {
     };
 
     const handleExport = async (type: 'xlsx' | 'csv') => {
-        const data = await getRegistrations();
+        // Use normalizedRegistrations (current view state) instead of fetching fresh raw data
+        const data = normalizedRegistrations;
+
         if (data.length === 0) {
             alert("No hay registros para exportar.");
             return;
         }
 
-        const exportData = data.map(row => ({
-            "Nombre Completo": row.fullName,
-            "No. Invitación": row.inviteNumber,
-            "WhatsApp": row.whatsapp,
-            "Cantidad Niños": row.childCount,
-            "Género": row.genderSelection,
-            "Departamento": row.department,
-            "Municipio": row.municipality,
-            "Distrito": row.district || "N/A",
-            "Dirección Detallada": row.addressDetails || "N/A",
-            "Fecha Registro": new Date(row.timestamp).toLocaleString('es-SV')
-        }));
+        // Export individual children rows
+        const exportData: any[] = [];
+
+        data.forEach(reg => {
+            reg.children.forEach(child => {
+                exportData.push({
+                    "Nombre Padre/Madre": reg.parentName || reg.fullName || "N/A",
+                    "Nombre Niño": child.fullName,
+                    "No. Invitación": child.inviteNumber,
+                    "Edad": child.age,
+                    "Género": child.gender,
+                    "WhatsApp": reg.whatsapp,
+                    "Departamento": reg.department,
+                    "Municipio": reg.municipality,
+                    "Distrito": reg.district || "N/A",
+                    "Dirección": reg.addressDetails || "N/A",
+                    "Distribuidor": reg.ticketDistributor || "N/A",
+                    "Estado": child.status === 'delivered' ? 'ENTREGADO' : 'PENDIENTE',
+                    "Fecha Registro": new Date(reg.timestamp).toLocaleString('es-SV')
+                });
+            });
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
@@ -851,47 +1016,8 @@ const AdminPanel: React.FC = () => {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    // Normalization Logic: Group Legacy Records by WhatsApp
-    const normalizedRegistrations = useMemo(() => {
-        const legacyGroups: Record<string, Registration[]> = {}; // Key: whatsapp
-        const modernRecords: Registration[] = [];
 
-        registrations.forEach(reg => {
-            if (reg.children && reg.children.length > 0) {
-                modernRecords.push(reg);
-            } else {
-                // Legacy Record
-                // Sanitize WhatsApp for grouping (remove spaces, dashes, etc.)
-                const rawWa = reg.whatsapp || '';
-                const key = rawWa.replace(/\D/g, '') || 'unknown';
-
-                if (!legacyGroups[key]) legacyGroups[key] = [];
-                legacyGroups[key].push(reg);
-            }
-        });
-
-        const groupedLegacy: Registration[] = Object.entries(legacyGroups).map(([wa, group]) => {
-            const first = group[0];
-            return {
-                ...first,
-                id: `legacy_group_${wa}`, // Virtual ID
-                children: group.map(g => ({
-                    id: g.id,
-                    // Use updated fields or fallback to legacy top-level fields
-                    inviteNumber: g.inviteNumber || '???',
-                    fullName: g.fullName || 'Niño (Legacy)',
-                    age: g.childAge || 0,
-                    gender: g.genderSelection || 'N/A',
-                    status: 'pending' as const // Default status for legacy unless we check 'delivered' status in storage which we don't have for legacy directly without deeper check
-                })),
-                childCount: group.length,
-                // Use the most recent timestamp in the group? Or oldest?
-                timestamp: group.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp
-            };
-        });
-
-        return [...modernRecords, ...groupedLegacy].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [registrations]);
+    // Normalized Registrations was moved up to be available for stats.
 
     // Distributor Control Logic
     const distributorAudit = useMemo(() => {
@@ -1225,7 +1351,7 @@ const AdminPanel: React.FC = () => {
                 const colWidths = [20, 25, 50, 20, 45, 25];
                 let x = 15;
 
-                doc.setFillColor(240);
+                doc.setFillColor(240, 240, 240);
                 doc.rect(15, 38, 185, 8, "F");
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(9);
@@ -1234,39 +1360,29 @@ const AdminPanel: React.FC = () => {
                     x += colWidths[i];
                 });
 
+
                 // --- DATA PREP ---
                 // Map all registrations by Invite Number for fast lookup
                 const regMap = new Map<number, { child: any, reg: Registration }>();
                 const phoneCounts = new Map<string, number>();
 
-                registrations.forEach(r => {
+                normalizedRegistrations.forEach(r => {
                     // Count phones
                     if (r.whatsapp) {
                         const cleanPhone = r.whatsapp.replace(/\D/g, '');
                         phoneCounts.set(cleanPhone, (phoneCounts.get(cleanPhone) || 0) + 1);
                     }
 
-                    if (r.children && r.children.length > 0) {
-                        r.children.forEach(c => {
-                            if (c.inviteNumber) {
-                                // Normalize invite number (NIxxxx -> number)
-                                const match = c.inviteNumber.match(/\d+/);
-                                if (match) {
-                                    const num = parseInt(match[0], 10);
-                                    regMap.set(num, { child: c, reg: r });
-                                }
-                            }
-                        });
-                    } else {
-                        // Legacy fallback
-                        if (r.inviteNumber) {
-                            const match = r.inviteNumber.match(/\d+/);
+                    r.children.forEach(c => {
+                        if (c.inviteNumber) {
+                            // Normalize invite number (NIxxxx -> number)
+                            const match = c.inviteNumber.match(/\d+/);
                             if (match) {
                                 const num = parseInt(match[0], 10);
-                                regMap.set(num, { child: r, reg: r }); // Treat reg as child for legacy
+                                regMap.set(num, { child: c, reg: r });
                             }
                         }
-                    }
+                    });
                 });
 
                 // --- ROWS ---
@@ -1677,15 +1793,31 @@ const AdminPanel: React.FC = () => {
                             <div className="p-4 space-y-2">
                                 {currentUser?.role === 'admin' ? (
                                     <>
-                                        <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
-                                        <TabButton active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Hero & Estilo" />
-                                        <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
-                                        <TabButton active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="WhatsApp & Ubicación" />
-                                        <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos WhatsApp" />
-                                        <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Estadísticas" />
-                                        <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
-                                        <TabButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
-                                        <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Base de Datos" />
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">Tablero</p>
+                                            <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Estadísticas" />
+                                        </div>
+
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Operaciones</p>
+                                            <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
+                                            <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos WhatsApp" />
+                                        </div>
+
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Datos</p>
+                                            <TabButton active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Base de Datos" />
+                                        </div>
+
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Sistema</p>
+                                            <TabButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
+                                            <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="Configuración" />
+                                            <TabButton active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Estilo" />
+                                            <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
+                                            <TabButton active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Config WhatsApp" />
+                                            <TabButton active={activeTab === 'system'} onClick={() => setActiveTab('system')} icon={<FolderLock size={18} />} label="Respaldos" />
+                                        </div>
                                     </>
                                 ) : currentUser?.role === 'verifier' ? (
                                     // Verifier ONLY
@@ -1720,17 +1852,15 @@ const AdminPanel: React.FC = () => {
                         <div className="md:hidden w-full overflow-x-auto flex border-b border-slate-200 bg-slate-50 flex-shrink-0 scrollbar-hide">
                             {currentUser?.role === 'admin' ? (
                                 <>
+                                    <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
+                                    <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
+                                    <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos" />
+                                    <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
+                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
                                     <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
                                     <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Estilo" />
                                     <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
                                     <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Config WA" />
-                                    <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos" />
-                                    <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
-                                    <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
-                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
-                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
-                                    <TabButtonMobile active={activeTab === 'control'} onClick={() => setActiveTab('control')} icon={<ShieldCheck size={18} />} label="Control" />
-                                    <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
                                 </>
                             ) : currentUser?.role === 'verifier' ? (
                                 <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
@@ -2372,7 +2502,7 @@ const AdminPanel: React.FC = () => {
                                                         </ResponsiveContainer>
                                                     </div>
                                                     <div className="text-center text-sm text-slate-500 mt-2">
-                                                        Total Niños/as: <span className="font-bold text-slate-800">{registrations.reduce((acc, r) => acc + r.childCount, 0)}</span>
+                                                        Total Niños/as: <span className="font-bold text-slate-800">{normalizedRegistrations.reduce((acc, r) => acc + r.children.length, 0)}</span>
                                                     </div>
                                                 </div>
                                                 {/* Delivery Progress (Pie) */}
@@ -3019,6 +3149,11 @@ const AdminPanel: React.FC = () => {
                             {
                                 activeTab === 'users' && currentUser?.role === 'admin' && (
                                     <UsersManagementTab />
+                                )
+                            }
+                            {
+                                activeTab === 'system' && currentUser?.role === 'admin' && (
+                                    <SystemBackupTab />
                                 )
                             }
 

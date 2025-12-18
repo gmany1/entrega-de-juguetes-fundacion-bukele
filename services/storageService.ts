@@ -413,6 +413,7 @@ export const saveDistributor = async (distributor: TicketDistributor): Promise<S
   }
 };
 
+
 export const deleteDistributor = async (id: string): Promise<StorageResult> => {
   try {
     await deleteDoc(doc(db, 'distributors', id));
@@ -420,5 +421,99 @@ export const deleteDistributor = async (id: string): Promise<StorageResult> => {
   } catch (error) {
     console.error("Error deleting distributor", error);
     return { success: false, message: "Error al eliminar distribuidor." };
+  }
+};
+
+// --- BACKUP & RESTORE SYSTEM ---
+
+export const getFullDatabaseDump = async (): Promise<any> => {
+  try {
+    const collections = [
+      'registrations',
+      'system_users',
+      'distributors',
+      'settings',
+      'taken_invites' // Critical to restore for Invite integrity
+    ];
+
+    const output: Record<string, any[]> = {};
+
+    for (const colName of collections) {
+      const snap = await getDocs(collection(db, colName));
+      output[colName] = snap.docs.map(d => ({ __id: d.id, ...d.data() }));
+    }
+
+    // Add counters manually
+    const counterSnap = await getDoc(doc(db, 'counters', 'registrations'));
+    if (counterSnap.exists()) {
+      output['counters'] = [{ __id: 'registrations', ...counterSnap.data() }];
+    }
+
+    return {
+      timestamp: new Date().toISOString(),
+      version: '1.0',
+      data: output
+    };
+  } catch (error) {
+    console.error("Backup failed", error);
+    throw error;
+  }
+};
+
+export const restoreDatabaseDump = async (dump: any): Promise<StorageResult> => {
+  try {
+    if (!dump || !dump.data) {
+      return { success: false, message: "El archivo de respaldo no es válido (Falta data)." };
+    }
+
+    // 1. WIPE ALL DATA (DANGER ZONE)
+    const collectionsToWipe = Object.keys(dump.data);
+
+    for (const colName of collectionsToWipe) {
+      const q = query(collection(db, colName));
+      const snap = await getDocs(q);
+      // Batch delete (chunked)
+      const batchSize = 400;
+      const chunks = [];
+      for (let i = 0; i < snap.docs.length; i += batchSize) {
+        chunks.push(snap.docs.slice(i, i + batchSize));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 2. RESTORE DATA
+    for (const colName of collectionsToWipe) {
+      const items = dump.data[colName];
+      if (!Array.isArray(items)) continue;
+
+      const batchSize = 400; // Batch limit
+      const chunks = [];
+      for (let i = 0; i < items.length; i += batchSize) {
+        chunks.push(items.slice(i, i + batchSize));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(item => {
+          const { __id, ...rest } = item;
+          if (__id) {
+            const ref = doc(db, colName, __id);
+            batch.set(ref, rest);
+          }
+        });
+        await batch.commit();
+      }
+    }
+
+    return { success: true };
+
+  } catch (error: any) {
+    console.error("Restore failed", error);
+    return { success: false, message: error.message || "Error desconocido al restaurar." };
   }
 };

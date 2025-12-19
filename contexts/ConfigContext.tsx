@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppConfig, DEFAULT_CONFIG } from '../types';
-import { getAppConfig, saveAppConfig, getDistributors } from '../services/storageService';
+import { getAppConfig, saveAppConfig, getDistributors, saveDistributor } from '../services/storageService';
 
 interface ConfigContextType {
   config: AppConfig;
@@ -20,7 +20,20 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const refreshConfig = async () => {
     try {
       const remoteConfig = await getAppConfig();
-      const distributors = await getDistributors();
+      let distributors = await getDistributors();
+
+      // AUTO-MIGRATION: If no distributors in DB, upload defaults to make them public
+      if (distributors.length === 0) {
+        console.log("No public distributors found. Syncing defaults to cloud...");
+        const defaults = DEFAULT_CONFIG.ticketDistributors;
+
+        // Upload sequentially to avoid race conditions or potential duplicates checks failing
+        for (const dist of defaults) {
+          await saveDistributor(dist);
+        }
+        // Refetch after sync
+        distributors = await getDistributors();
+      }
 
       if (remoteConfig || distributors.length > 0) {
         setConfig(prev => {

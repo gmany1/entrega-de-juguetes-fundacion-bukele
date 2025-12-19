@@ -527,6 +527,56 @@ export const deleteDistributor = async (id: string): Promise<StorageResult> => {
   }
 };
 
+export const cleanupDuplicateDistributors = async (): Promise<StorageResult> => {
+  try {
+    const distributors = await getDistributors();
+    const groups: Record<string, TicketDistributor[]> = {};
+
+    // Group by Name
+    distributors.forEach(d => {
+      if (!groups[d.name]) groups[d.name] = [];
+      groups[d.name].push(d);
+    });
+
+    let deletedCount = 0;
+    const batch = writeBatch(db);
+    let opCount = 0;
+
+    Object.values(groups).forEach(group => {
+      if (group.length > 1) {
+        // Sort to keep the best one:
+        // Prioritize ones with ranges defined
+        group.sort((a, b) => {
+          const rangeA = (a.startRange || 0) + (a.endRange || 0);
+          const rangeB = (b.startRange || 0) + (b.endRange || 0);
+          return rangeB - rangeA; // Descending (Best first)
+        });
+
+        // Delete all except the first one
+        for (let i = 1; i < group.length; i++) {
+          const toDelete = group[i];
+          if (toDelete.id) {
+            const ref = doc(db, 'distributors', toDelete.id);
+            batch.delete(ref);
+            opCount++;
+            deletedCount++;
+          }
+        }
+      }
+    });
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+
+    return { success: true, message: `Se eliminaron ${deletedCount} distribuidores duplicados.` };
+
+  } catch (error: any) {
+    console.error("Error cleaning duplicates", error);
+    return { success: false, message: error.message };
+  }
+};
+
 // --- BACKUP & RESTORE SYSTEM ---
 
 export const getFullDatabaseDump = async (): Promise<any> => {

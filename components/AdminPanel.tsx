@@ -26,7 +26,8 @@ import {
     clearAllRegistrations,
     saveAppConfig,
     authenticateUser,
-    cleanupOrphanedInvites
+    cleanupOrphanedInvites,
+    cleanupDuplicateDistributors
 } from '../services/storageService';
 
 export interface TicketDistributor {
@@ -2206,6 +2207,23 @@ const AdminPanel: React.FC = () => {
                                                             Agregar
                                                         </button>
                                                     </div>
+                                                </div>
+
+                                                <div className="flex justify-end mb-4">
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (confirm("Esto eliminará distribuidores duplicados (mismo nombre), manteniendo el que tiene mejor definición de rango. ¿Continuar?")) {
+                                                                setIsLoading(true);
+                                                                const res = await cleanupDuplicateDistributors();
+                                                                await refreshConfig();
+                                                                setIsLoading(false);
+                                                                alert(res.message);
+                                                            }
+                                                        }}
+                                                        className="text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-200 flex items-center gap-2"
+                                                    >
+                                                        <ShieldCheck className="w-3 h-3" /> Reparar Duplicados
+                                                    </button>
                                                 </div>
 
                                                 {/* List */}

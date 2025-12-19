@@ -1059,12 +1059,19 @@ const AdminPanel: React.FC = () => {
     const distributorAudit = useMemo(() => {
         if (!config.ticketDistributors) return [];
 
-        // 1. Collect ALL registered ticket numbers from the entire database
-        const allRegisteredNumbers = new Set<number>();
+        // 1. Collect ALL registered ticket numbers and their status
+        const registeredTickets = new Map<number, { status: string }>();
         normalizedRegistrations.forEach(r => {
             r.children.forEach(c => {
                 const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
-                if (!isNaN(num)) allRegisteredNumbers.add(num);
+                if (!isNaN(num)) {
+                    // If duplicate, we just take the last one (edge case), or prioritize delivered?
+                    // Let's prioritize delivered if duplicates exist.
+                    const current = registeredTickets.get(num);
+                    if (!current || c.status === 'delivered') {
+                        registeredTickets.set(num, { status: c.status || 'pending' });
+                    }
+                }
             });
         });
 
@@ -1075,12 +1082,17 @@ const AdminPanel: React.FC = () => {
             const totalAssigned = (start > 0 && end > 0) ? (end - start + 1) : 0;
 
             const missingTickets: number[] = [];
-            let inRangeCount = 0;
+            let registeredCount = 0;
+            let deliveredCount = 0;
 
             if (totalAssigned > 0) {
                 for (let i = start; i <= end; i++) {
-                    if (allRegisteredNumbers.has(i)) {
-                        inRangeCount++;
+                    const ticket = registeredTickets.get(i);
+                    if (ticket) {
+                        registeredCount++;
+                        if (ticket.status === 'delivered') {
+                            deliveredCount++;
+                        }
                     } else {
                         missingTickets.push(i);
                     }
@@ -1091,8 +1103,10 @@ const AdminPanel: React.FC = () => {
                 name: dist.name,
                 range: `${start} - ${end}`,
                 totalAssigned,
-                inRangeCount,
-                percent: totalAssigned > 0 ? Math.round((inRangeCount / totalAssigned) * 100) : 0,
+                registeredCount,
+                deliveredCount,
+                percentRegistered: totalAssigned > 0 ? Math.round((registeredCount / totalAssigned) * 100) : 0,
+                percentDelivered: totalAssigned > 0 ? Math.round((deliveredCount / totalAssigned) * 100) : 0,
                 missingTickets
             };
         }).sort((a, b) => b.missingTickets.length - a.missingTickets.length);
@@ -1241,15 +1255,39 @@ const AdminPanel: React.FC = () => {
         let result = normalizedRegistrations; // USE NORMALIZED HERE
 
         // 1. Text Search
+        // 1. Text Search
         if (searchTerm) {
             const lowerInfo = searchTerm.toLowerCase();
-            result = result.filter(reg =>
-                (reg.parentName || reg.fullName || '').toLowerCase().includes(lowerInfo) ||
-                (reg.whatsapp || '').includes(lowerInfo) ||
-                (reg.ticketDistributor || '').toLowerCase().includes(lowerInfo) ||
-                (reg.inviteNumber || '').toLowerCase().includes(lowerInfo) ||
-                (reg.children || []).some(child => (child.inviteNumber || '').toLowerCase().includes(lowerInfo))
-            );
+            // Try to extract a pure number from the search term for looser matching (e.g., "NI0618" -> 618)
+            const numericSearch = parseInt(lowerInfo.replace(/\D/g, ''));
+            const hasNumericSearch = !isNaN(numericSearch);
+
+            result = result.filter(reg => {
+                // Basic string fields
+                if (
+                    (reg.parentName || reg.fullName || '').toLowerCase().includes(lowerInfo) ||
+                    (reg.whatsapp || '').includes(lowerInfo) ||
+                    (reg.ticketDistributor || '').toLowerCase().includes(lowerInfo)
+                ) return true;
+
+                // Check tickets (children & legacy field) with enhanced logic
+                const checkTicket = (invite: string | undefined) => {
+                    if (!invite) return false;
+                    const val = invite.toLowerCase();
+                    if (val.includes(lowerInfo)) return true; // Direct substring match
+
+                    // Numeric equivalence check (e.g. search "NI0618" matches "618")
+                    if (hasNumericSearch) {
+                        const valNum = parseInt(val.replace(/\D/g, ''));
+                        // Exact numeric match is usually what's needed if specific format fails
+                        if (!isNaN(valNum) && valNum === numericSearch) return true;
+                    }
+                    return false;
+                };
+
+                if (checkTicket(reg.inviteNumber)) return true;
+                return (reg.children || []).some(child => checkTicket(child.inviteNumber));
+            });
         }
 
 
@@ -3177,16 +3215,33 @@ const AdminPanel: React.FC = () => {
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between text-sm text-slate-600">
-                                                            <span>Progreso</span>
-                                                            <span className="font-bold">{audit.inRangeCount} / {audit.totalAssigned}</span>
+                                                    <div className="space-y-3 mt-4">
+                                                        {/* Registered Stats */}
+                                                        <div>
+                                                            <div className="flex justify-between text-xs text-slate-600 mb-1">
+                                                                <span>Ingresados en Sistema</span>
+                                                                <span className="font-bold">{audit.registeredCount} / {audit.totalAssigned}</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                                                    style={{ width: `${audit.percentRegistered}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
-                                                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                                            <div
-                                                                className={`h-full rounded-full ${audit.percent === 100 ? 'bg-green-500' : 'bg-blue-600'}`}
-                                                                style={{ width: `${audit.percent}%` }}
-                                                            ></div>
+
+                                                        {/* Delivered Stats */}
+                                                        <div>
+                                                            <div className="flex justify-between text-xs text-slate-600 mb-1">
+                                                                <span>Juguetes Entregados (Scaneados)</span>
+                                                                <span className="font-bold text-green-600">{audit.deliveredCount}</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                                                    style={{ width: `${audit.percentDelivered}%` }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3194,10 +3249,13 @@ const AdminPanel: React.FC = () => {
                                                 <div className="p-0 flex-grow bg-slate-50/50">
                                                     <details className="group">
                                                         <summary className="p-4 cursor-pointer text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex justify-between items-center">
-                                                            <span>Ver Tickets Faltantes ({audit.missingTickets.length})</span>
+                                                            <span>Tickets Pendientes de Registro ({audit.missingTickets.length})</span>
                                                             <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                                                         </summary>
                                                         <div className="px-4 pb-4">
+                                                            <p className="text-xs text-slate-500 mb-2 italic">
+                                                                Estos tickets están asignados al distribuidor pero NO han sido ingresados al sistema por ningún padre.
+                                                            </p>
                                                             {audit.missingTickets.length > 0 ? (
                                                                 <div className="mt-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border border-slate-200">
                                                                     {audit.missingTickets.map(num => (
@@ -3208,7 +3266,7 @@ const AdminPanel: React.FC = () => {
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-center text-green-600 text-sm py-4 bg-green-50 rounded border border-green-100 mt-2">
-                                                                    ¡Completo! Todos los tickets registrados.
+                                                                    ¡Completo! Todos los tickets fueron ingresados al sistema.
                                                                 </div>
                                                             )}
                                                         </div>

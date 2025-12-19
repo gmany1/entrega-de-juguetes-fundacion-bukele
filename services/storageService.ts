@@ -1,4 +1,4 @@
-import { db } from './firebaseConfig';
+import { db, waitForAuth, auth } from './firebaseConfig';
 import { collection, addDoc, getDocs, query, where, getCountFromServer, Timestamp, orderBy, limit, deleteDoc, doc, writeBatch, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { Registration, StorageResult, SystemUser, TicketDistributor } from '../types';
 
@@ -172,6 +172,13 @@ export const updateRegistration = async (id: string, data: Partial<Registration>
 
 export const deleteRegistration = async (id: string): Promise<StorageResult> => {
   try {
+    // Ensure we are authenticated
+    await waitForAuth;
+    if (!auth.currentUser) {
+      console.error("No auth user found");
+      return { success: false, message: "Error de permisos: Firebase Auth no conectado." };
+    }
+
     // 1. Get the registration to find which invites to release
     const regRef = doc(db, COLLECTION_NAME, id);
     const regSnap = await getDoc(regRef);
@@ -198,9 +205,11 @@ export const deleteRegistration = async (id: string): Promise<StorageResult> => 
     // 2. Delete the registration
     await deleteDoc(regRef);
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting registration", error);
-    return { success: false, message: "Error al eliminar el registro." };
+    // Return the actual error code if possible
+    const msg = error.code ? `Error Google: ${error.code}` : "Error al eliminar el registro.";
+    return { success: false, message: msg };
   }
 };
 

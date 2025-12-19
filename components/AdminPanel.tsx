@@ -833,35 +833,67 @@ const AdminPanel: React.FC = () => {
             count: ageCount[i] || 0
         }));
 
-        // 6. Distributor Stats (STRICT TICKET LOGIC)
-        const distCount: Record<string, number> = {};
+        // 6. Distributor Stats (Range Capacity vs Registered)
+        const distCount: Record<string, { registered: number, missing: number, total: number }> = {};
 
-        // Initialize counts
+        // 1. Initialize with RANGE capacities
         (config.ticketDistributors || []).forEach(d => {
-            distCount[d.name] = 0;
+            const rangeSize = (d.startRange && d.endRange) ? (d.endRange - d.startRange + 1) : 0;
+            distCount[d.name] = { registered: 0, missing: rangeSize, total: rangeSize };
         });
-        distCount['Otros / Sin Asignar'] = 0;
+
+        // Always have an entry for others, starts at 0/0/0 and grows as we find them
+        if (!distCount['Otros / Sin Asignar']) {
+            distCount['Otros / Sin Asignar'] = { registered: 0, missing: 0, total: 0 };
+        }
+
+        // 2. Count ACTUAL Registrations (This signals "Distribution to Parent")
+        const registeredTicketsSet = new Set<number>();
 
         normalizedRegistrations.forEach(r => {
             r.children.forEach(c => {
-                // Determine owner of THIS specific ticket
-                const distName = getDistributorForTicket(c.inviteNumber, config.ticketDistributors || []);
+                const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
 
-                // If "Others" but parent has a manual override, maybe we should respect it?
-                // The user said "The code is what rules". So range first.
-                // Compatibility: If range didn't match ('Others'), but parent has text field, use that?
-                let finalDist = distName;
-                if (distName === 'Otros / Sin Asignar' && r.ticketDistributor) {
-                    finalDist = r.ticketDistributor;
+                // Track Unique Registered Tickets
+                if (!isNaN(num) && !registeredTicketsSet.has(num)) {
+                    registeredTicketsSet.add(num);
+
+                    // Find who this belongs to
+                    const distName = getDistributorForTicket(c.inviteNumber, config.ticketDistributors || []);
+                    let finalDist = distName;
+
+                    // Fallback to text override if "Others"
+                    if (distName === 'Otros / Sin Asignar' && r.ticketDistributor) {
+                        finalDist = r.ticketDistributor;
+                    }
+
+                    // Ensure entry exists (for manual overrides that aren't in config list)
+                    if (!distCount[finalDist]) {
+                        distCount[finalDist] = { registered: 0, missing: 0, total: 0 };
+                    }
+
+                    distCount[finalDist].registered++;
+
+                    // Logic for "Missing":
+                    // If it's a known distributor with a range, "missing" decreases as they register.
+                    // But prevent negative missing if they go over (or if range is 0)
+                    if (distCount[finalDist].total > 0) {
+                        distCount[finalDist].missing = Math.max(0, distCount[finalDist].total - distCount[finalDist].registered);
+                    } else {
+                        // For "Others" or manual, Total grows with Registered, Missing stays 0
+                        distCount[finalDist].total++;
+                    }
                 }
-
-                if (distCount[finalDist] === undefined) distCount[finalDist] = 0;
-                distCount[finalDist]++;
             });
         });
 
         const distributorData = Object.entries(distCount)
-            .map(([name, value]) => ({ name, value }))
+            .map(([name, counts]) => ({
+                name,
+                value: counts.total,
+                registered: counts.registered,
+                missing: counts.missing
+            }))
             .sort((a, b) => b.value - a.value);
 
         // 8. Top Colonies (Address Details)
@@ -2851,27 +2883,41 @@ const AdminPanel: React.FC = () => {
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                                                    {/* Distributor Chart (Bar) */}
-                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col md:col-span-2 lg:col-span-3">
+                                                    {/* Distributor Chart (Horizontal Bar for better Mobile/List view) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:col-span-2 lg:col-span-3">
                                                         <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                                                             <User className="w-4 h-4 text-blue-600" /> Tickets por Responsable
                                                         </h4>
-                                                        <div className="flex-grow">
-                                                            <ResponsiveContainer width="100%" height={350}>
-                                                                <BarChart data={stats?.distributorData || []} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" interval={0} />
-                                                                    <YAxis allowDecimals={false} />
-                                                                    <RechartsTooltip cursor={{ fill: 'transparent' }} />
-                                                                    <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40}>
-                                                                        {
-                                                                            (stats?.distributorData || []).map((entry, index) => (
-                                                                                <Cell key={`cell-${index}`} fill={['#2563eb', '#3b82f6', '#60a5fa'][index % 3] || '#3b82f6'} />
-                                                                            ))
-                                                                        }
-                                                                    </Bar>
-                                                                </BarChart>
-                                                            </ResponsiveContainer>
+                                                        {/* Scrollable Container for massive lists */}
+                                                        <div className="flex-grow overflow-x-hidden overflow-y-auto max-h-[600px] pr-2 custon-scrollbar">
+
+                                                            {/* Dynamic Height based on item count (approx 50px per item + buffer) */}
+                                                            <div style={{ height: Math.max(400, (stats?.distributorData || []).length * 50) }}>
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart
+                                                                        data={stats?.distributorData || []}
+                                                                        layout="vertical"
+                                                                        margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                                                    >
+                                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} />
+                                                                        <XAxis type="number" hide />
+                                                                        <YAxis
+                                                                            dataKey="name"
+                                                                            type="category"
+                                                                            width={100}
+                                                                            tick={{ fontSize: 11, fill: '#64748b' }}
+                                                                            interval={0}
+                                                                        />
+                                                                        <RechartsTooltip
+                                                                            cursor={{ fill: '#f1f5f9' }}
+                                                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                                        />
+                                                                        <Legend verticalAlign="top" height={36} />
+                                                                        <Bar dataKey="registered" stackId="a" fill="#10b981" name="Entregados (Monitor)" radius={[0, 0, 0, 0]} barSize={24} />
+                                                                        <Bar dataKey="missing" stackId="a" fill="#f43f5e" name="Faltantes" radius={[0, 4, 4, 0]} barSize={24} />
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
                                                         </div>
                                                     </div>
 

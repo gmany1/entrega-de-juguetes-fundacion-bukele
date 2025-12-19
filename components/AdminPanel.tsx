@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, XCircle, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck, MapPin } from 'lucide-react';
+import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, XCircle, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck, MapPin, Menu, Grid } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -615,6 +615,7 @@ const AdminPanel: React.FC = () => {
     const [loginError, setLoginError] = useState('');
 
     const [activeTab, setActiveTab] = useState<'general' | 'hero' | 'content' | 'whatsapp' | 'data' | 'stats' | 'scanner' | 'users' | 'wa_list' | 'system'>('general');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { config, updateConfig, resetConfig, refreshConfig } = useConfig();
 
     const [localConfig, setLocalConfig] = useState<AppConfig>(config);
@@ -2059,1772 +2060,1871 @@ const AdminPanel: React.FC = () => {
                         </div>
 
                         {/* Mobile Tabs (Horizontal) */}
-                        <div className="md:hidden w-full overflow-x-auto flex border-b border-slate-200 bg-slate-50 flex-shrink-0 scrollbar-hide">
-                            {currentUser?.role === 'admin' ? (
-                                <>
-                                    <TabButtonMobile active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} icon={<BarChart3 size={18} />} label="Stats" />
-                                    <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
-                                    <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos" />
-                                    <TabButtonMobile active={activeTab === 'data'} onClick={() => setActiveTab('data')} icon={<Database size={18} />} label="Datos" />
-                                    <TabButtonMobile active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<User size={18} />} label="Usuarios" />
-                                    <TabButtonMobile active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<Settings size={18} />} label="General" />
-                                    <TabButtonMobile active={activeTab === 'hero'} onClick={() => setActiveTab('hero')} icon={<ImageIcon size={18} />} label="Estilo" />
-                                    <TabButtonMobile active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Contenido" />
-                                    <TabButtonMobile active={activeTab === 'whatsapp'} onClick={() => setActiveTab('whatsapp')} icon={<MessageSquare size={18} />} label="Config WA" />
-                                </>
-                            ) : currentUser?.role === 'verifier' ? (
-                                <TabButtonMobile active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear" />
-                            ) : (
-                                <TabButtonMobile active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<MessageSquare size={18} />} label="WhatsApp" />
-                            )}
+                        {/* Mobile Tabs (Horizontal) - OPTIMIZED */}
+                        <div className="md:hidden w-full border-b border-slate-200 bg-white flex-shrink-0 grid grid-cols-4">
+                            <TabButtonMobile
+                                active={!mobileMenuOpen && activeTab === 'stats'}
+                                onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }}
+                                icon={<BarChart3 size={20} />}
+                                label="Tablero"
+                            />
+                            <TabButtonMobile
+                                active={!mobileMenuOpen && activeTab === 'scanner'}
+                                onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
+                                icon={<ScanLine size={20} />}
+                                label="Escanear"
+                            />
+                            <TabButtonMobile
+                                active={!mobileMenuOpen && (activeTab === 'data' || activeTab === 'wa_list')}
+                                onClick={() => { setActiveTab('data'); setMobileMenuOpen(false); }}
+                                icon={<Database size={20} />}
+                                label="Registros"
+                            />
+                            <TabButtonMobile
+                                active={mobileMenuOpen}
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                icon={<Menu size={20} />}
+                                label="Menú"
+                            />
                         </div>
 
                         {/* Content Area */}
                         <div className="flex-grow p-6 overflow-y-auto bg-slate-50">
 
-                            {activeTab === 'general' && (
-                                <div className="space-y-6 animate-fade-in pb-10">
-                                    <SectionHeader title="Configuración General" description="Controla el estado principal del evento." />
-
-                                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-
-
-                                        {/* Status Toggle */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                            <div>
-                                                <label className="font-bold text-slate-800 text-lg">Estado del Registro</label>
-                                                <p className="text-sm text-slate-500 mt-1">Activa o desactiva el formulario públicamente.</p>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={localConfig.isRegistrationOpen}
-                                                    onChange={(e) => handleInputChange('isRegistrationOpen', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
-                                            </label>
+                            {mobileMenuOpen && (
+                                <div className="absolute inset-0 z-50 bg-slate-50 p-6 overflow-y-auto animate-fade-in pb-24">
+                                    <div className="max-w-md mx-auto space-y-6">
+                                        <div className="text-center mb-6">
+                                            <h3 className="text-xl font-bold text-slate-800">Menú Principal</h3>
+                                            <p className="text-sm text-slate-500">Opciones adicionales de administración</p>
                                         </div>
 
-                                        <hr className="border-slate-100" />
-
-                                        {/* Limits & Date */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="block text-sm font-bold text-slate-700 mb-2">Límite Máximo de Registros</label>
-                                                <input
-                                                    type="number"
-                                                    value={localConfig.maxRegistrations}
-                                                    onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
-                                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                                />
-                                                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                                                    <span className={`w-2 h-2 rounded-full ${registrationCount >= localConfig.maxRegistrations ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                                                    Actualmente: <span className="font-semibold">{registrationCount}</span> familias
-                                                    <span className="font-bold text-blue-600 ml-1">
-                                                        ({normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)} Juguetes)
-                                                    </span>
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-bold text-slate-700 mb-2">Fecha del Evento (Texto)</label>
-                                                <input
-                                                    type="text"
-                                                    value={localConfig.eventDate}
-                                                    onChange={(e) => handleInputChange('eventDate', e.target.value)}
-                                                    placeholder="Ej: 24 de Diciembre, 2:00 PM"
-                                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <hr className="border-slate-100" />
-
-                                        <div className="md:col-span-2">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <label className="block text-sm font-medium text-slate-700">
-                                                    Gestión de Distribuidores (CRM)
-                                                </label>
-                                                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                                                    {localConfig.ticketDistributors?.length || 0} Registrados
-                                                </span>
-                                            </div>
-
-                                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                                {/* Add New */}
-                                                <div className="flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={newDistributorName}
-                                                            onChange={(e) => setNewDistributorName(e.target.value)}
-                                                            placeholder="Nuevo Distribuidor..."
-                                                            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        />
-                                                        <input
-                                                            type="tel"
-                                                            value={newDistributorPhone}
-                                                            onChange={(e) => setNewDistributorPhone(e.target.value)}
-                                                            placeholder="WhatsApp"
-                                                            className="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        />
+                                        {/* Operaciones */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operaciones</h4>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button onClick={() => { setActiveTab('wa_list'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-green-50 rounded-full text-green-600">
+                                                        <Send size={24} />
                                                     </div>
-                                                    <div className="flex gap-2 items-center">
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Inicio"
-                                                            className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
-                                                            value={newDistributorStart || ''}
-                                                            onChange={(e) => setNewDistributorStart(parseInt(e.target.value) || 0)}
-                                                        />
-                                                        <span className="text-slate-400">-</span>
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Fin"
-                                                            className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
-                                                            value={newDistributorEnd || ''}
-                                                            onChange={(e) => setNewDistributorEnd(parseInt(e.target.value) || 0)}
-                                                        />
-                                                        <div className="flex-grow"></div>
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (!confirm("Esto analizará todos los registros e importará automáticamente los distribuidores y sus rangos detectados. ¿Continuar?")) return;
-
-                                                                setIsLoading(true);
-                                                                try {
-                                                                    const inferredDistributors: Record<string, { start: number, end: number }> = {};
-
-                                                                    // 1. Analyze all registrations
-                                                                    normalizedRegistrations.forEach(r => {
-                                                                        if (r.ticketDistributor && r.ticketDistributor.trim()) {
-                                                                            const name = r.ticketDistributor.trim();
-                                                                            if (!inferredDistributors[name]) inferredDistributors[name] = { start: 999999, end: 0 };
-
-                                                                            r.children.forEach(c => {
-                                                                                const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
-                                                                                if (!isNaN(num) && num > 0) {
-                                                                                    inferredDistributors[name].start = Math.min(inferredDistributors[name].start, num);
-                                                                                    inferredDistributors[name].end = Math.max(inferredDistributors[name].end, num);
-                                                                                }
-                                                                            });
-                                                                        }
-                                                                    });
-
-                                                                    // 2. Save only NEW ones (don't overwrite existing configs to prevent data loss)
-                                                                    let importedCount = 0;
-                                                                    const existingNames = new Set((config.ticketDistributors || []).map(d => d.name));
-
-                                                                    for (const [name, range] of Object.entries(inferredDistributors)) {
-                                                                        if (range.end > 0 && !existingNames.has(name)) {
-                                                                            await saveDistributor({
-                                                                                name: name,
-                                                                                startRange: range.start,
-                                                                                endRange: range.end,
-                                                                                phone: ''
-                                                                            });
-                                                                            importedCount++;
-                                                                        }
-                                                                    }
-
-                                                                    if (importedCount > 0) {
-                                                                        await refreshConfig();
-                                                                        alert(`Se importaron ${importedCount} distribuidores nuevos basados en los registros.`);
-                                                                    } else {
-                                                                        alert("No se encontraron nuevos distribuidores para importar (o ya existen).");
-                                                                    }
-
-                                                                } catch (e) {
-                                                                    console.error(e);
-                                                                    alert("Error al importar.");
-                                                                }
-                                                                setIsLoading(false);
-                                                            }}
-                                                            className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
-                                                            title="Detectar rangos automáticamente desde los registros"
-                                                        >
-                                                            <Database className="w-4 h-4" /> Importar
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-
-                                                                if (newDistributorName.trim()) {
-                                                                    setIsLoading(true);
-                                                                    const res = await saveDistributor({
-                                                                        name: newDistributorName.trim(),
-                                                                        phone: newDistributorPhone.trim(),
-                                                                        startRange: newDistributorStart,
-                                                                        endRange: newDistributorEnd
-                                                                    });
-
-                                                                    if (res.success) {
-                                                                        await refreshConfig();
-                                                                        setNewDistributorName('');
-                                                                        setNewDistributorPhone('');
-                                                                        setNewDistributorStart(0);
-                                                                        setNewDistributorEnd(0);
-                                                                    } else {
-                                                                        alert("Error: " + res.message);
-                                                                    }
-                                                                    setIsLoading(false);
-                                                                }
-                                                            }}
-                                                            disabled={!newDistributorName.trim()}
-                                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                        >
-                                                            Agregar
-                                                        </button>
+                                                    <span className="font-bold text-slate-700 text-sm">Envíos WA</span>
+                                                </button>
+                                                <button onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+                                                        <ClipboardCheck size={24} />
                                                     </div>
-                                                </div>
-
-                                                <div className="flex justify-end mb-4">
-                                                    <button
-                                                        onClick={async () => {
-                                                            if (confirm("Esto eliminará distribuidores duplicados (mismo nombre), manteniendo el que tiene mejor definición de rango. ¿Continuar?")) {
-                                                                setIsLoading(true);
-                                                                const res = await cleanupDuplicateDistributors();
-                                                                await refreshConfig();
-                                                                setIsLoading(false);
-                                                                alert(res.message);
-                                                            }
-                                                        }}
-                                                        className="text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-200 flex items-center gap-2"
-                                                    >
-                                                        <ShieldCheck className="w-3 h-3" /> Reparar Duplicados
-                                                    </button>
-                                                </div>
-
-                                                {/* List */}
-                                                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
-                                                    {(localConfig.ticketDistributors || []).length === 0 ? (
-                                                        <div className="p-8 text-center text-slate-400 text-sm">
-                                                            No hay distribuidores registrados.
-                                                        </div>
-                                                    ) : (
-                                                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                                                            {(localConfig.ticketDistributors || []).map((rawDist, idx) => {
-                                                                // Normalize data: Handle legacy strings and new objects
-                                                                const dist = typeof rawDist === 'string'
-                                                                    ? { name: rawDist, phone: '', startRange: 0, endRange: 0 }
-                                                                    : (rawDist || { name: '', phone: '', startRange: 0, endRange: 0 });
-                                                                const isEditing = editingDistributorIndex === idx;
-                                                                return (
-                                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 group hover:border-blue-300 transition-colors">
-                                                                        {isEditing ? (
-                                                                            <div className="flex-1 flex flex-col gap-2">
-                                                                                <div className="flex gap-2">
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={tempDistributorName}
-                                                                                        onChange={(e) => setTempDistributorName(e.target.value)}
-                                                                                        className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
-                                                                                        placeholder="Nombre"
-                                                                                    />
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={tempDistributorPhone}
-                                                                                        onChange={(e) => setTempDistributorPhone(e.target.value)}
-                                                                                        className="w-24 px-2 py-1 border border-slate-300 rounded text-sm"
-                                                                                        placeholder="Teléfono"
-                                                                                    />
-                                                                                </div>
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <input
-                                                                                        type="number"
-                                                                                        placeholder="Inicio e.g. 1"
-                                                                                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
-                                                                                        value={tempDistributorStart}
-                                                                                        onChange={(e) => setTempDistributorStart(parseInt(e.target.value) || 0)}
-                                                                                    />
-                                                                                    <span className="text-slate-400">-</span>
-                                                                                    <input
-                                                                                        type="number"
-                                                                                        placeholder="Fin e.g. 100"
-                                                                                        className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
-                                                                                        value={tempDistributorEnd}
-                                                                                        onChange={(e) => setTempDistributorEnd(parseInt(e.target.value) || 0)}
-                                                                                    />
-                                                                                    <div className="flex-grow"></div>
-                                                                                    <div className="flex gap-1">
-                                                                                        <button
-                                                                                            onClick={async () => {
-                                                                                                setIsLoading(true);
-                                                                                                await saveDistributor({
-                                                                                                    id: dist.id,
-                                                                                                    name: tempDistributorName.trim(),
-                                                                                                    phone: tempDistributorPhone.trim(),
-                                                                                                    startRange: tempDistributorStart,
-                                                                                                    endRange: tempDistributorEnd
-                                                                                                });
-                                                                                                setEditingDistributorIndex(null);
-                                                                                                window.location.reload();
-                                                                                            }}
-                                                                                            className="text-green-600 hover:bg-green-50 p-1 rounded"
-                                                                                            title="Guardar"
-                                                                                        >
-                                                                                            <Check size={16} />
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={() => setEditingDistributorIndex(null)}
-                                                                                            className="text-red-500 hover:bg-red-50 p-1 rounded"
-                                                                                            title="Cancelar"
-                                                                                        >
-                                                                                            <X size={16} />
-                                                                                        </button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-
-
-                                                                        ) : (
-                                                                            <>
-                                                                                <div className="flex items-center gap-3">
-                                                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs relative">
-                                                                                        {(dist.name || '').charAt(0).toUpperCase()}
-                                                                                        {dist.startRange && dist.endRange ? (
-                                                                                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                                                                                        ) : null}
-                                                                                    </div>
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
-                                                                                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                                                                                            {dist.phone && <span>{dist.phone}</span>}
-                                                                                            {dist.startRange && dist.endRange && (
-                                                                                                <span className="bg-green-50 text-green-700 px-1.5 rounded border border-green-100">
-                                                                                                    Range: {dist.startRange} - {dist.endRange}
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                                    <button
-                                                                                        onClick={() => handleExportPDF(dist)}
-                                                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                                                        title="Descargar Lista de Control"
-                                                                                    >
-                                                                                        <Download size={14} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => {
-                                                                                            setEditingDistributorIndex(idx);
-                                                                                            setTempDistributorName(dist.name);
-                                                                                            setTempDistributorPhone(dist.phone || '');
-                                                                                            setTempDistributorStart(dist.startRange || 0);
-                                                                                            setTempDistributorEnd(dist.endRange || 0);
-                                                                                        }}
-                                                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                                                        title="Editar"
-                                                                                    >
-                                                                                        <Edit2 size={14} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={async () => {
-                                                                                            if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
-                                                                                                if (dist.id) {
-                                                                                                    await deleteDistributor(dist.id);
-                                                                                                    window.location.reload();
-                                                                                                } else {
-                                                                                                    const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
-                                                                                                    handleInputChange('ticketDistributors', updated);
-                                                                                                }
-                                                                                            }
-                                                                                        }}
-                                                                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                                        title="Eliminar"
-                                                                                    >
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Auditoría</span>
+                                                </button>
                                             </div>
-                                            <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                                                <Info size={12} />
-                                                Gestiona aquí quiénes pueden entregar tickets. Esto no afecta los registros ya existentes.
-                                            </p>
                                         </div>
+
+                                        {/* Sistema */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sistema</h4>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-purple-50 rounded-full text-purple-600">
+                                                        <User size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Usuarios</span>
+                                                </button>
+                                                <button onClick={() => { setActiveTab('system'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-orange-50 rounded-full text-orange-600">
+                                                        <FolderLock size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Respaldos</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Configuración */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Configuración</h4>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button onClick={() => { setActiveTab('general'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-slate-50 rounded-full text-slate-600">
+                                                        <Settings size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">General</span>
+                                                </button>
+                                                <button onClick={() => { setActiveTab('hero'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-pink-50 rounded-full text-pink-600">
+                                                        <ImageIcon size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Estilo</span>
+                                                </button>
+                                                <button onClick={() => { setActiveTab('content'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
+                                                        <Type size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Contenido</span>
+                                                </button>
+                                                <button onClick={() => { setActiveTab('whatsapp'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-green-50 rounded-full text-green-600">
+                                                        <MessageSquare size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Config WA</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => { setIsAuthenticated(false); setCurrentUser(null); }}
+                                            className="w-full bg-red-50 text-red-600 font-bold py-4 rounded-xl border border-red-100 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                                        >
+                                            <Lock size={18} />
+                                            Cerrar Sesión
+                                        </button>
                                     </div>
                                 </div>
                             )}
 
-                            {activeTab === 'hero' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Sección Hero & Estilos" description="Personaliza la primera impresión de la página." />
+                            {/* Main Content Render (Hide when menu is open on mobile to prevent scrolling double issues) */}
+                            <div className={`space-y-6 animate-fade-in pb-10 ${mobileMenuOpen ? 'hidden md:block' : ''}`}>
+                                {activeTab === 'general' && (
+                                    <div className="space-y-6 animate-fade-in pb-10">
+                                        <SectionHeader title="Configuración General" description="Controla el estado principal del evento." />
 
-                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <InputGroup label="Título Principal" value={localConfig.heroTitle} onChange={(v) => handleInputChange('heroTitle', v)} />
-                                        <InputGroup label="Subtítulo" value={localConfig.heroSubtitle} onChange={(v) => handleInputChange('heroSubtitle', v)} />
+                                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">URL Imagen de Fondo (Manual)</label>
-                                            <input
-                                                type="text"
-                                                value={localConfig.heroBackgroundImage}
-                                                onChange={(e) => handleInputChange('heroBackgroundImage', e.target.value)}
-                                                placeholder="https://ejemplo.com/imagen.jpg"
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                                            />
-                                        </div>
-                                    </div>
 
-                                    {/* AI Editor Section */}
-                                    <div className="bg-gradient-to-r from-violet-50 to-blue-50 p-6 rounded-xl border border-violet-100 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <div className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white p-2 rounded-lg">
-                                                <Sparkles size={20} />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-slate-800">Editor de Fondo con IA</h4>
-                                                <p className="text-xs text-slate-500">Impulsado por Gemini 2.5 Flash Image</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Status Toggle */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                                                 <div>
-                                                    <label className="block text-sm font-medium text-slate-700 mb-2">1. Imagen Base (Opcional)</label>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="cursor-pointer flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-lg text-sm w-full transition-colors">
-                                                            <Upload size={16} />
-                                                            Subir Imagen
-                                                            <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                                        </label>
-                                                    </div>
-                                                    {aiSourceImage && (
-                                                        <div className="mt-2 relative group rounded-lg overflow-hidden border border-slate-200 h-32 bg-slate-100">
-                                                            <img src={aiSourceImage} alt="Source" className="w-full h-full object-cover" />
-                                                            <button
-                                                                onClick={() => setAiSourceImage(null)}
-                                                                className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                <X size={14} />
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                    <label className="font-bold text-slate-800 text-lg">Estado del Registro</label>
+                                                    <p className="text-sm text-slate-500 mt-1">Activa o desactiva el formulario públicamente.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={localConfig.isRegistrationOpen}
+                                                        onChange={(e) => handleInputChange('isRegistrationOpen', e.target.checked)}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+                                                </label>
+                                            </div>
+
+                                            <hr className="border-slate-100" />
+
+                                            {/* Limits & Date */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Límite Máximo de Registros</label>
+                                                    <input
+                                                        type="number"
+                                                        value={localConfig.maxRegistrations}
+                                                        onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
+                                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                                    />
+                                                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                                        <span className={`w-2 h-2 rounded-full ${registrationCount >= localConfig.maxRegistrations ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                                                        Actualmente: <span className="font-semibold">{registrationCount}</span> familias
+                                                        <span className="font-bold text-blue-600 ml-1">
+                                                            ({normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)} Juguetes)
+                                                        </span>
+                                                    </p>
                                                 </div>
 
                                                 <div>
-                                                    <label className="block text-sm font-medium text-slate-700 mb-2">2. Instrucción (Prompt)</label>
-                                                    <textarea
-                                                        value={aiPrompt}
-                                                        onChange={(e) => setAiPrompt(e.target.value)}
-                                                        placeholder="Ej: Añade decoraciones navideñas y luces cálidas."
-                                                        className="w-full h-[88px] px-3 py-2 border border-slate-300 rounded-lg text-sm resize-none"
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Fecha del Evento (Texto)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={localConfig.eventDate}
+                                                        onChange={(e) => handleInputChange('eventDate', e.target.value)}
+                                                        placeholder="Ej: 24 de Diciembre, 2:00 PM"
+                                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                                     />
                                                 </div>
                                             </div>
 
-                                            <button
-                                                onClick={handleGenerateImage}
-                                                disabled={aiLoading || !aiPrompt}
-                                                className={`w-full py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-all ${aiLoading || !aiPrompt
-                                                    ? 'bg-slate-300 cursor-not-allowed'
-                                                    : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
-                                                    } `}
-                                            >
-                                                {aiLoading ? (
-                                                    <>
-                                                        <Loader2 className="animate-spin w-5 h-5" />
-                                                        Generando...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Sparkles className="w-5 h-5" />
-                                                        Generar Imagen
-                                                    </>
-                                                )}
-                                            </button>
+                                            <hr className="border-slate-100" />
 
-                                            {aiError && (
-                                                <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
-                                                    {aiError}
+                                            <div className="md:col-span-2">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="block text-sm font-medium text-slate-700">
+                                                        Gestión de Distribuidores (CRM)
+                                                    </label>
+                                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                                        {localConfig.ticketDistributors?.length || 0} Registrados
+                                                    </span>
                                                 </div>
-                                            )}
 
-                                            {aiGeneratedImage && (
-                                                <div className="mt-6 border-t border-violet-200 pt-4 animate-fade-in">
-                                                    <label className="block text-sm font-medium text-slate-700 mb-2">Resultado</label>
-                                                    <div className="relative rounded-xl overflow-hidden shadow-lg border border-slate-200 mb-4 bg-slate-900">
-                                                        <img src={aiGeneratedImage} alt="Generated" className="w-full h-48 md:h-64 object-contain mx-auto" />
-                                                    </div>
-                                                    <button
-                                                        onClick={applyGeneratedImage}
-                                                        className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm transition-colors"
-                                                    >
-                                                        <ArrowRight className="w-4 h-4" />
-                                                        Usar como Fondo del Hero
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                </div>
-                            )}
-
-                            {activeTab === 'content' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Contenido Informativo" description="Edita los textos de las tarjetas de información." />
-
-                                    <div className="grid gap-6">
-                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                            <h4 className="font-semibold text-blue-800">Tarjeta 1: ¿Para quién es?</h4>
-                                            <InputGroup label="Título" value={localConfig.infoTargetTitle} onChange={(v) => handleInputChange('infoTargetTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={localConfig.infoTargetDescription} onChange={(v) => handleInputChange('infoTargetDescription', v)} />
-                                        </div>
-
-                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                            <h4 className="font-semibold text-blue-800">Tarjeta 2: Requisitos</h4>
-                                            <InputGroup label="Título" value={localConfig.infoRequirementsTitle} onChange={(v) => handleInputChange('infoRequirementsTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={localConfig.infoRequirementsDescription} onChange={(v) => handleInputChange('infoRequirementsDescription', v)} />
-                                        </div>
-
-                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                            <h4 className="font-semibold text-blue-800">Tarjeta 3: Ubicación</h4>
-                                            <InputGroup label="Título" value={localConfig.infoLocationTitle} onChange={(v) => handleInputChange('infoLocationTitle', v)} />
-                                            <TextAreaGroup label="Descripción" value={localConfig.infoLocationDescription} onChange={(v) => handleInputChange('infoLocationDescription', v)} />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab === 'whatsapp' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="WhatsApp y Ubicación" description="Configura el contacto y los valores por defecto." />
-
-                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <h4 className="font-semibold text-green-700 mb-2">Configuración WhatsApp</h4>
-                                        <InputGroup label="Número de Organización" value={localConfig.orgPhoneNumber} onChange={(v) => handleInputChange('orgPhoneNumber', v)} />
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Plantilla del Mensaje</label>
-                                            <textarea
-                                                value={localConfig.whatsappTemplate}
-                                                onChange={(e) => handleInputChange('whatsappTemplate', e.target.value)}
-                                                rows={6}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
-                                            />
-                                            <div className="flex gap-2 mt-2">
-                                                <button
-                                                    onClick={() => {
-                                                        const demoMsg = localConfig.whatsappTemplate
-                                                            .replace('{name}', 'Juan Pérez')
-                                                            .replace('{count}', '2')
-                                                            .replace('{invites}', 'NI0001, NI0002')
-                                                            .replace('{phone}', localConfig.vCardPhone)
-                                                            .replace('{contactName}', localConfig.vCardName);
-                                                        window.open(`https://wa.me/${localConfig.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
-                                                    }}
-                                                    className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
-                                                >
-                                                    <MessageSquare size={12} /> Probar Demo
-                                                </button >
-                                            </div >
-                                            <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
-                                        </div >
-                                    </div >
-
-                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <h4 className="font-semibold text-purple-700 mb-2">Tarjeta de Contacto (vCard)</h4>
-                                        <p className="text-xs text-slate-500 mb-2">Información para que los padres guarden el contacto.</p>
-                                        <InputGroup label="Nombre del Contacto" value={localConfig.vCardName} onChange={(v) => handleInputChange('vCardName', v)} />
-                                        <InputGroup label="Teléfono de Contacto" value={localConfig.vCardPhone} onChange={(v) => handleInputChange('vCardPhone', v)} />
-                                    </div>
-
-                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                                        <h4 className="font-semibold text-blue-800 mb-2">Valores por Defecto (Ubicación)</h4>
-                                        <div className="grid md:grid-cols-3 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-1">Departamento</label>
-                                                <select
-                                                    value={localConfig.defaultDepartment}
-                                                    onChange={(e) => handleInputChange('defaultDepartment', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                                                >
-                                                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                                                </select>
-                                            </div>
-                                            <InputGroup label="Municipio" value={localConfig.defaultMunicipality} onChange={(v) => handleInputChange('defaultMunicipality', v)} />
-                                            <InputGroup label="Distrito" value={localConfig.defaultDistrict} onChange={(v) => handleInputChange('defaultDistrict', v)} />
-                                        </div>
-                                    </div>
-                                </div >
-                            )}
-
-                            {activeTab === 'stats' && (
-                                <div className="space-y-6 animate-fade-in pb-10">
-                                    <SectionHeader title="Tablero de Control" description="Métricas clave para la logística del evento." />
-
-                                    {registrations.length === 0 ? (
-                                        <div className="bg-white p-12 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                                            <div className="bg-slate-100 p-4 rounded-full mb-4">
-                                                <BarChart3 className="w-12 h-12 text-slate-400" />
-                                            </div>
-                                            <h3 className="text-xl font-bold text-slate-800 mb-2">Aún no hay estadísticas</h3>
-                                            <p className="text-slate-500 max-w-sm">
-                                                Las gráficas aparecerán automáticamente cuando se reciban los primeros registros.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {/* Goal Progress */}
-                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                                <div className="flex justify-between items-end mb-2">
-                                                    <div>
-                                                        <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Juguetes / Tickets</h4>
-                                                        <div className="text-3xl font-bold text-slate-800 mt-1">
-                                                            {normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)}
-                                                            <span className="text-lg text-slate-400 font-normal"> / {config.maxRegistrations}</span>
+                                                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                    {/* Add New */}
+                                                    <div className="flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={newDistributorName}
+                                                                onChange={(e) => setNewDistributorName(e.target.value)}
+                                                                placeholder="Nuevo Distribuidor..."
+                                                                className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            />
+                                                            <input
+                                                                type="tel"
+                                                                value={newDistributorPhone}
+                                                                onChange={(e) => setNewDistributorPhone(e.target.value)}
+                                                                placeholder="WhatsApp"
+                                                                className="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            />
                                                         </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                            ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                                            }`}>
-                                                            {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-1000 ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                            ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
-                                                            }`}
-                                                        style={{ width: `${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
+                                                        <div className="flex gap-2 items-center">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Inicio"
+                                                                className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
+                                                                value={newDistributorStart || ''}
+                                                                onChange={(e) => setNewDistributorStart(parseInt(e.target.value) || 0)}
+                                                            />
+                                                            <span className="text-slate-400">-</span>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Fin"
+                                                                className="w-24 px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none"
+                                                                value={newDistributorEnd || ''}
+                                                                onChange={(e) => setNewDistributorEnd(parseInt(e.target.value) || 0)}
+                                                            />
+                                                            <div className="flex-grow"></div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!confirm("Esto analizará todos los registros e importará automáticamente los distribuidores y sus rangos detectados. ¿Continuar?")) return;
 
-                                            {/* Red Flags Alert Section */}
-                                            {stats?.redFlags && stats.redFlags.length > 0 && (
-                                                <div className="mb-6 animate-fade-in">
-                                                    <details className="group bg-red-50 border border-red-200 rounded-lg shadow-sm open:shadow-md transition-all duration-300">
-                                                        <summary className="list-none flex items-center justify-between p-4 cursor-pointer">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="bg-red-100 p-2 rounded-full">
-                                                                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                                                                </div>
-                                                                <div>
-                                                                    <h3 className="text-base font-bold text-red-800">
-                                                                        Alerta de Anomalías
-                                                                    </h3>
-                                                                    <p className="text-xs text-red-600 font-medium">
-                                                                        {stats.redFlags.length} números con exceso de registros
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <ChevronDown className="w-5 h-5 text-red-400 transform group-open:rotate-180 transition-transform duration-300" />
-                                                        </summary>
+                                                                    setIsLoading(true);
+                                                                    try {
+                                                                        const inferredDistributors: Record<string, { start: number, end: number }> = {};
 
-                                                        <div className="px-4 pb-4 border-t border-red-100 mt-2 pt-2">
-                                                            <p className="text-sm text-red-700 mb-3 ml-1">
-                                                                Los siguientes números de teléfono tienen registrados <strong>más de 3 niños</strong>, lo cual es inusual:
-                                                            </p>
-                                                            <div className="overflow-x-auto bg-white rounded-lg border border-red-100 shadow-sm">
-                                                                <table className="min-w-full text-sm text-left">
-                                                                    <thead className="bg-red-50/50">
-                                                                        <tr>
-                                                                            <th className="px-4 py-2 text-red-900 font-bold border-b border-red-100">Teléfono</th>
-                                                                            <th className="px-4 py-2 text-red-900 font-bold text-right border-b border-red-100">Cantidad de Niños</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-red-50">
-                                                                        {stats.redFlags.map((item, idx) => (
-                                                                            <tr key={idx} className="hover:bg-red-50/30 transition-colors">
-                                                                                <td className="px-4 py-2 text-slate-700 font-mono">{item.phone}</td>
-                                                                                <td className="px-4 py-2 text-red-600 font-bold text-right">{item.count}</td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    </details>
-                                                </div>
-                                            )}
+                                                                        // 1. Analyze all registrations
+                                                                        normalizedRegistrations.forEach(r => {
+                                                                            if (r.ticketDistributor && r.ticketDistributor.trim()) {
+                                                                                const name = r.ticketDistributor.trim();
+                                                                                if (!inferredDistributors[name]) inferredDistributors[name] = { start: 999999, end: 0 };
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                                                r.children.forEach(c => {
+                                                                                    const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
+                                                                                    if (!isNaN(num) && num > 0) {
+                                                                                        inferredDistributors[name].start = Math.min(inferredDistributors[name].start, num);
+                                                                                        inferredDistributors[name].end = Math.max(inferredDistributors[name].end, num);
+                                                                                    }
+                                                                                });
+                                                                            }
+                                                                        });
 
-                                                {/* Distributor Chart (Bar) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col md:col-span-2 lg:col-span-3">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                                                        <User className="w-4 h-4 text-blue-600" /> Tickets por Responsable
-                                                    </h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={350}>
-                                                            <BarChart data={stats?.distributorData || []} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" interval={0} />
-                                                                <YAxis allowDecimals={false} />
-                                                                <RechartsTooltip cursor={{ fill: 'transparent' }} />
-                                                                <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40}>
-                                                                    {
-                                                                        (stats?.distributorData || []).map((entry, index) => (
-                                                                            <Cell key={`cell-${index}`} fill={['#2563eb', '#3b82f6', '#60a5fa'][index % 3] || '#3b82f6'} />
-                                                                        ))
+                                                                        // 2. Save only NEW ones (don't overwrite existing configs to prevent data loss)
+                                                                        let importedCount = 0;
+                                                                        const existingNames = new Set((config.ticketDistributors || []).map(d => d.name));
+
+                                                                        for (const [name, range] of Object.entries(inferredDistributors)) {
+                                                                            if (range.end > 0 && !existingNames.has(name)) {
+                                                                                await saveDistributor({
+                                                                                    name: name,
+                                                                                    startRange: range.start,
+                                                                                    endRange: range.end,
+                                                                                    phone: ''
+                                                                                });
+                                                                                importedCount++;
+                                                                            }
+                                                                        }
+
+                                                                        if (importedCount > 0) {
+                                                                            await refreshConfig();
+                                                                            alert(`Se importaron ${importedCount} distribuidores nuevos basados en los registros.`);
+                                                                        } else {
+                                                                            alert("No se encontraron nuevos distribuidores para importar (o ya existen).");
+                                                                        }
+
+                                                                    } catch (e) {
+                                                                        console.error(e);
+                                                                        alert("Error al importar.");
                                                                     }
-                                                                </Bar>
-                                                            </BarChart>
-                                                        </ResponsiveContainer>
+                                                                    setIsLoading(false);
+                                                                }}
+                                                                className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                                                title="Detectar rangos automáticamente desde los registros"
+                                                            >
+                                                                <Database className="w-4 h-4" /> Importar
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+
+                                                                    if (newDistributorName.trim()) {
+                                                                        setIsLoading(true);
+                                                                        const res = await saveDistributor({
+                                                                            name: newDistributorName.trim(),
+                                                                            phone: newDistributorPhone.trim(),
+                                                                            startRange: newDistributorStart,
+                                                                            endRange: newDistributorEnd
+                                                                        });
+
+                                                                        if (res.success) {
+                                                                            await refreshConfig();
+                                                                            setNewDistributorName('');
+                                                                            setNewDistributorPhone('');
+                                                                            setNewDistributorStart(0);
+                                                                            setNewDistributorEnd(0);
+                                                                        } else {
+                                                                            alert("Error: " + res.message);
+                                                                        }
+                                                                        setIsLoading(false);
+                                                                    }
+                                                                }}
+                                                                disabled={!newDistributorName.trim()}
+                                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                Agregar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex justify-end mb-4">
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (confirm("Esto eliminará distribuidores duplicados (mismo nombre), manteniendo el que tiene mejor definición de rango. ¿Continuar?")) {
+                                                                    setIsLoading(true);
+                                                                    const res = await cleanupDuplicateDistributors();
+                                                                    await refreshConfig();
+                                                                    setIsLoading(false);
+                                                                    alert(res.message);
+                                                                }
+                                                            }}
+                                                            className="text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-200 flex items-center gap-2"
+                                                        >
+                                                            <ShieldCheck className="w-3 h-3" /> Reparar Duplicados
+                                                        </button>
+                                                    </div>
+
+                                                    {/* List */}
+                                                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                                                        {(localConfig.ticketDistributors || []).length === 0 ? (
+                                                            <div className="p-8 text-center text-slate-400 text-sm">
+                                                                No hay distribuidores registrados.
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                                                {(localConfig.ticketDistributors || []).map((rawDist, idx) => {
+                                                                    // Normalize data: Handle legacy strings and new objects
+                                                                    const dist = typeof rawDist === 'string'
+                                                                        ? { name: rawDist, phone: '', startRange: 0, endRange: 0 }
+                                                                        : (rawDist || { name: '', phone: '', startRange: 0, endRange: 0 });
+                                                                    const isEditing = editingDistributorIndex === idx;
+                                                                    return (
+                                                                        <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 group hover:border-blue-300 transition-colors">
+                                                                            {isEditing ? (
+                                                                                <div className="flex-1 flex flex-col gap-2">
+                                                                                    <div className="flex gap-2">
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={tempDistributorName}
+                                                                                            onChange={(e) => setTempDistributorName(e.target.value)}
+                                                                                            className="flex-1 px-2 py-1 border border-slate-300 rounded text-sm"
+                                                                                            placeholder="Nombre"
+                                                                                        />
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={tempDistributorPhone}
+                                                                                            onChange={(e) => setTempDistributorPhone(e.target.value)}
+                                                                                            className="w-24 px-2 py-1 border border-slate-300 rounded text-sm"
+                                                                                            placeholder="Teléfono"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            placeholder="Inicio e.g. 1"
+                                                                                            className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
+                                                                                            value={tempDistributorStart}
+                                                                                            onChange={(e) => setTempDistributorStart(parseInt(e.target.value) || 0)}
+                                                                                        />
+                                                                                        <span className="text-slate-400">-</span>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            placeholder="Fin e.g. 100"
+                                                                                            className="w-20 px-2 py-1 text-xs border border-slate-300 rounded"
+                                                                                            value={tempDistributorEnd}
+                                                                                            onChange={(e) => setTempDistributorEnd(parseInt(e.target.value) || 0)}
+                                                                                        />
+                                                                                        <div className="flex-grow"></div>
+                                                                                        <div className="flex gap-1">
+                                                                                            <button
+                                                                                                onClick={async () => {
+                                                                                                    setIsLoading(true);
+                                                                                                    await saveDistributor({
+                                                                                                        id: dist.id,
+                                                                                                        name: tempDistributorName.trim(),
+                                                                                                        phone: tempDistributorPhone.trim(),
+                                                                                                        startRange: tempDistributorStart,
+                                                                                                        endRange: tempDistributorEnd
+                                                                                                    });
+                                                                                                    setEditingDistributorIndex(null);
+                                                                                                    window.location.reload();
+                                                                                                }}
+                                                                                                className="text-green-600 hover:bg-green-50 p-1 rounded"
+                                                                                                title="Guardar"
+                                                                                            >
+                                                                                                <Check size={16} />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={() => setEditingDistributorIndex(null)}
+                                                                                                className="text-red-500 hover:bg-red-50 p-1 rounded"
+                                                                                                title="Cancelar"
+                                                                                            >
+                                                                                                <X size={16} />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+
+
+                                                                            ) : (
+                                                                                <>
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs relative">
+                                                                                            {(dist.name || '').charAt(0).toUpperCase()}
+                                                                                            {dist.startRange && dist.endRange ? (
+                                                                                                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                                                                                            ) : null}
+                                                                                        </div>
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-sm text-slate-700 font-medium">{dist.name}</span>
+                                                                                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                                                                                                {dist.phone && <span>{dist.phone}</span>}
+                                                                                                {dist.startRange && dist.endRange && (
+                                                                                                    <span className="bg-green-50 text-green-700 px-1.5 rounded border border-green-100">
+                                                                                                        Range: {dist.startRange} - {dist.endRange}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                        <button
+                                                                                            onClick={() => handleExportPDF(dist)}
+                                                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                                            title="Descargar Lista de Control"
+                                                                                        >
+                                                                                            <Download size={14} />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                setEditingDistributorIndex(idx);
+                                                                                                setTempDistributorName(dist.name);
+                                                                                                setTempDistributorPhone(dist.phone || '');
+                                                                                                setTempDistributorStart(dist.startRange || 0);
+                                                                                                setTempDistributorEnd(dist.endRange || 0);
+                                                                                            }}
+                                                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                                                            title="Editar"
+                                                                                        >
+                                                                                            <Edit2 size={14} />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={async () => {
+                                                                                                if (confirm(`¿Eliminar a "${dist.name}" de la lista?`)) {
+                                                                                                    if (dist.id) {
+                                                                                                        await deleteDistributor(dist.id);
+                                                                                                        window.location.reload();
+                                                                                                    } else {
+                                                                                                        const updated = (localConfig.ticketDistributors || []).filter((_, i) => i !== idx);
+                                                                                                        handleInputChange('ticketDistributors', updated);
+                                                                                                    }
+                                                                                                }
+                                                                                            }}
+                                                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                                            title="Eliminar"
+                                                                                        >
+                                                                                            <Trash2 size={14} />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
+                                                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                                    <Info size={12} />
+                                                    Gestiona aquí quiénes pueden entregar tickets. Esto no afecta los registros ya existentes.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                                {/* Gender Chart (Pie) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><PieChart className="w-4 h-4 text-purple-500" /> Género</h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={250}>
-                                                            <PieChart>
-                                                                <Pie
-                                                                    data={stats?.genderData || []}
-                                                                    cx="50%"
-                                                                    cy="50%"
-                                                                    innerRadius={60}
-                                                                    outerRadius={80}
-                                                                    paddingAngle={5}
-                                                                    dataKey="value"
+                                {activeTab === 'hero' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="Sección Hero & Estilos" description="Personaliza la primera impresión de la página." />
+
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                            <InputGroup label="Título Principal" value={localConfig.heroTitle} onChange={(v) => handleInputChange('heroTitle', v)} />
+                                            <InputGroup label="Subtítulo" value={localConfig.heroSubtitle} onChange={(v) => handleInputChange('heroSubtitle', v)} />
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">URL Imagen de Fondo (Manual)</label>
+                                                <input
+                                                    type="text"
+                                                    value={localConfig.heroBackgroundImage}
+                                                    onChange={(e) => handleInputChange('heroBackgroundImage', e.target.value)}
+                                                    placeholder="https://ejemplo.com/imagen.jpg"
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* AI Editor Section */}
+                                        <div className="bg-gradient-to-r from-violet-50 to-blue-50 p-6 rounded-xl border border-violet-100 shadow-sm">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <div className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white p-2 rounded-lg">
+                                                    <Sparkles size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800">Editor de Fondo con IA</h4>
+                                                    <p className="text-xs text-slate-500">Impulsado por Gemini 2.5 Flash Image</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">1. Imagen Base (Opcional)</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="cursor-pointer flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-lg text-sm w-full transition-colors">
+                                                                <Upload size={16} />
+                                                                Subir Imagen
+                                                                <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                                            </label>
+                                                        </div>
+                                                        {aiSourceImage && (
+                                                            <div className="mt-2 relative group rounded-lg overflow-hidden border border-slate-200 h-32 bg-slate-100">
+                                                                <img src={aiSourceImage} alt="Source" className="w-full h-full object-cover" />
+                                                                <button
+                                                                    onClick={() => setAiSourceImage(null)}
+                                                                    className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                                 >
-                                                                    {(stats?.genderData || []).map((entry, index) => (
-                                                                        <Cell key={`cell-${index}`} fill={['#3b82f6', '#ec4899', '#a855f7'][index % 3]} />
-                                                                    ))}
-                                                                </Pie>
-                                                                <RechartsTooltip />
-                                                                <Legend verticalAlign="bottom" height={36} />
-                                                            </PieChart>
-                                                        </ResponsiveContainer>
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="text-center text-sm text-slate-500 mt-2">
-                                                        Total Niños/as: <span className="font-bold text-slate-800">{normalizedRegistrations.reduce((acc, r) => acc + r.children.length, 0)}</span>
-                                                    </div>
-                                                </div>
-                                                {/* Delivery Progress (Pie) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600" /> Progreso Entrega</h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={250}>
-                                                            <PieChart>
-                                                                <Pie
-                                                                    data={stats?.deliveryProgressData || []}
-                                                                    cx="50%"
-                                                                    cy="50%"
-                                                                    innerRadius={60}
-                                                                    outerRadius={80}
-                                                                    paddingAngle={5}
-                                                                    dataKey="value"
-                                                                >
-                                                                    {(stats?.deliveryProgressData || []).map((entry, index) => (
-                                                                        <Cell key={`cell-${index}`} fill={entry.name === 'Entregados' ? '#16a34a' : '#94a3b8'} />
-                                                                    ))}
-                                                                </Pie>
-                                                                <RechartsTooltip />
-                                                                <Legend verticalAlign="bottom" height={36} />
-                                                            </PieChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                    <div className="text-center text-sm text-slate-500 mt-2">
-                                                        {stats?.deliveryProgressData.find(d => d.name === 'Entregados')?.value || 0} Entregados / {registrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} Total
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">2. Instrucción (Prompt)</label>
+                                                        <textarea
+                                                            value={aiPrompt}
+                                                            onChange={(e) => setAiPrompt(e.target.value)}
+                                                            placeholder="Ej: Añade decoraciones navideñas y luces cálidas."
+                                                            className="w-full h-[88px] px-3 py-2 border border-slate-300 rounded-lg text-sm resize-none"
+                                                        />
                                                     </div>
                                                 </div>
 
+                                                <button
+                                                    onClick={handleGenerateImage}
+                                                    disabled={aiLoading || !aiPrompt}
+                                                    className={`w-full py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-all ${aiLoading || !aiPrompt
+                                                        ? 'bg-slate-300 cursor-not-allowed'
+                                                        : 'bg-violet-600 hover:bg-violet-700 shadow-md hover:shadow-lg'
+                                                        } `}
+                                                >
+                                                    {aiLoading ? (
+                                                        <>
+                                                            <Loader2 className="animate-spin w-5 h-5" />
+                                                            Generando...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Sparkles className="w-5 h-5" />
+                                                            Generar Imagen
+                                                        </>
+                                                    )}
+                                                </button>
 
-                                                {/* Age Distribution (Bar) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Contact className="w-4 h-4 text-orange-500" /> Edades (0-12)</h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={250}>
-                                                            <BarChart data={stats?.ageData || []}>
-                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                                <XAxis dataKey="age" tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
-                                                                <YAxis allowDecimals={false} />
-                                                                <RechartsTooltip cursor={{ fill: 'transparent' }} />
-                                                                <Bar dataKey="count" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
-                                                            </BarChart>
-                                                        </ResponsiveContainer>
+                                                {aiError && (
+                                                    <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
+                                                        {aiError}
+                                                    </div>
+                                                )}
+
+                                                {aiGeneratedImage && (
+                                                    <div className="mt-6 border-t border-violet-200 pt-4 animate-fade-in">
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">Resultado</label>
+                                                        <div className="relative rounded-xl overflow-hidden shadow-lg border border-slate-200 mb-4 bg-slate-900">
+                                                            <img src={aiGeneratedImage} alt="Generated" className="w-full h-48 md:h-64 object-contain mx-auto" />
+                                                        </div>
+                                                        <button
+                                                            onClick={applyGeneratedImage}
+                                                            className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm transition-colors"
+                                                        >
+                                                            <ArrowRight className="w-4 h-4" />
+                                                            Usar como Fondo del Hero
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                )}
+
+                                {activeTab === 'content' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="Contenido Informativo" description="Edita los textos de las tarjetas de información." />
+
+                                        <div className="grid gap-6">
+                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                                <h4 className="font-semibold text-blue-800">Tarjeta 1: ¿Para quién es?</h4>
+                                                <InputGroup label="Título" value={localConfig.infoTargetTitle} onChange={(v) => handleInputChange('infoTargetTitle', v)} />
+                                                <TextAreaGroup label="Descripción" value={localConfig.infoTargetDescription} onChange={(v) => handleInputChange('infoTargetDescription', v)} />
+                                            </div>
+
+                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                                <h4 className="font-semibold text-blue-800">Tarjeta 2: Requisitos</h4>
+                                                <InputGroup label="Título" value={localConfig.infoRequirementsTitle} onChange={(v) => handleInputChange('infoRequirementsTitle', v)} />
+                                                <TextAreaGroup label="Descripción" value={localConfig.infoRequirementsDescription} onChange={(v) => handleInputChange('infoRequirementsDescription', v)} />
+                                            </div>
+
+                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                                <h4 className="font-semibold text-blue-800">Tarjeta 3: Ubicación</h4>
+                                                <InputGroup label="Título" value={localConfig.infoLocationTitle} onChange={(v) => handleInputChange('infoLocationTitle', v)} />
+                                                <TextAreaGroup label="Descripción" value={localConfig.infoLocationDescription} onChange={(v) => handleInputChange('infoLocationDescription', v)} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'whatsapp' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <SectionHeader title="WhatsApp y Ubicación" description="Configura el contacto y los valores por defecto." />
+
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                            <h4 className="font-semibold text-green-700 mb-2">Configuración WhatsApp</h4>
+                                            <InputGroup label="Número de Organización" value={localConfig.orgPhoneNumber} onChange={(v) => handleInputChange('orgPhoneNumber', v)} />
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-1">Plantilla del Mensaje</label>
+                                                <textarea
+                                                    value={localConfig.whatsappTemplate}
+                                                    onChange={(e) => handleInputChange('whatsappTemplate', e.target.value)}
+                                                    rows={6}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
+                                                />
+                                                <div className="flex gap-2 mt-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const demoMsg = localConfig.whatsappTemplate
+                                                                .replace('{name}', 'Juan Pérez')
+                                                                .replace('{count}', '2')
+                                                                .replace('{invites}', 'NI0001, NI0002')
+                                                                .replace('{phone}', localConfig.vCardPhone)
+                                                                .replace('{contactName}', localConfig.vCardName);
+                                                            window.open(`https://wa.me/${localConfig.orgPhoneNumber}?text=${encodeURIComponent(demoMsg)}`, '_blank');
+                                                        }}
+                                                        className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageSquare size={12} /> Probar Demo
+                                                    </button >
+                                                </div >
+                                                <p className="text-xs text-slate-500 mt-2">Variables disponibles: {'{name}, {count}, {invites}'}</p>
+                                            </div >
+                                        </div >
+
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                            <h4 className="font-semibold text-purple-700 mb-2">Tarjeta de Contacto (vCard)</h4>
+                                            <p className="text-xs text-slate-500 mb-2">Información para que los padres guarden el contacto.</p>
+                                            <InputGroup label="Nombre del Contacto" value={localConfig.vCardName} onChange={(v) => handleInputChange('vCardName', v)} />
+                                            <InputGroup label="Teléfono de Contacto" value={localConfig.vCardPhone} onChange={(v) => handleInputChange('vCardPhone', v)} />
+                                        </div>
+
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                            <h4 className="font-semibold text-blue-800 mb-2">Valores por Defecto (Ubicación)</h4>
+                                            <div className="grid md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Departamento</label>
+                                                    <select
+                                                        value={localConfig.defaultDepartment}
+                                                        onChange={(e) => handleInputChange('defaultDepartment', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                                    >
+                                                        {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                                    </select>
+                                                </div>
+                                                <InputGroup label="Municipio" value={localConfig.defaultMunicipality} onChange={(v) => handleInputChange('defaultMunicipality', v)} />
+                                                <InputGroup label="Distrito" value={localConfig.defaultDistrict} onChange={(v) => handleInputChange('defaultDistrict', v)} />
+                                            </div>
+                                        </div>
+                                    </div >
+                                )}
+
+                                {activeTab === 'stats' && (
+                                    <div className="space-y-6 animate-fade-in pb-10">
+                                        <SectionHeader title="Tablero de Control" description="Métricas clave para la logística del evento." />
+
+                                        {registrations.length === 0 ? (
+                                            <div className="bg-white p-12 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                                                <div className="bg-slate-100 p-4 rounded-full mb-4">
+                                                    <BarChart3 className="w-12 h-12 text-slate-400" />
+                                                </div>
+                                                <h3 className="text-xl font-bold text-slate-800 mb-2">Aún no hay estadísticas</h3>
+                                                <p className="text-slate-500 max-w-sm">
+                                                    Las gráficas aparecerán automáticamente cuando se reciban los primeros registros.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Goal Progress */}
+                                                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div className="flex justify-between items-end mb-2">
+                                                        <div>
+                                                            <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Juguetes / Tickets</h4>
+                                                            <div className="text-3xl font-bold text-slate-800 mt-1">
+                                                                {normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)}
+                                                                <span className="text-lg text-slate-400 font-normal"> / {config.maxRegistrations}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
+                                                                ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                                }`}>
+                                                                {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all duration-1000 ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
+                                                                ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
+                                                                }`}
+                                                            style={{ width: `${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%` }}
+                                                        ></div>
                                                     </div>
                                                 </div>
 
-                                                {/* Top Colonies (Bar - Vertical) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                                                        <MapPin className="w-4 h-4 text-purple-500" /> Top Lugares
-                                                    </h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={250}>
-                                                            <BarChart data={(stats?.colonyData || []).slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                                <XAxis type="number" hide />
-                                                                <YAxis
-                                                                    dataKey="displayName"
-                                                                    type="category"
-                                                                    width={90}
-                                                                    tick={{ fontSize: 10 }}
-                                                                    interval={0}
-                                                                />
-                                                                <RechartsTooltip
-                                                                    contentStyle={{ fontSize: '12px' }}
-                                                                    cursor={{ fill: 'transparent' }}
-                                                                />
-                                                                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
-                                                            </BarChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                </div>
+                                                {/* Red Flags Alert Section */}
+                                                {stats?.redFlags && stats.redFlags.length > 0 && (
+                                                    <div className="mb-6 animate-fade-in">
+                                                        <details className="group bg-red-50 border border-red-200 rounded-lg shadow-sm open:shadow-md transition-all duration-300">
+                                                            <summary className="list-none flex items-center justify-between p-4 cursor-pointer">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="bg-red-100 p-2 rounded-full">
+                                                                        <AlertTriangle className="h-5 w-5 text-red-600" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <h3 className="text-base font-bold text-red-800">
+                                                                            Alerta de Anomalías
+                                                                        </h3>
+                                                                        <p className="text-xs text-red-600 font-medium">
+                                                                            {stats.redFlags.length} números con exceso de registros
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <ChevronDown className="w-5 h-5 text-red-400 transform group-open:rotate-180 transition-transform duration-300" />
+                                                            </summary>
 
-                                                {/* Full Colonies List (Scrollable Chart) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col col-span-1 md:col-span-2 lg:col-span-4">
-                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                                                        <MapPin className="w-4 h-4 text-indigo-500" /> Distribución Completa de Lugares ({stats?.colonyData?.length || 0})
-                                                    </h4>
-                                                    <div className="flex-grow overflow-y-auto max-h-[500px] border border-slate-100 rounded-lg p-2">
-                                                        {/* Force height based on number of items to make it scrollable properly */}
-                                                        <div style={{ height: Math.max(400, (stats?.colonyData?.length || 0) * 30) }}>
-                                                            <ResponsiveContainer width="100%" height="100%">
-                                                                <BarChart data={stats?.colonyData || []} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                                                            <div className="px-4 pb-4 border-t border-red-100 mt-2 pt-2">
+                                                                <p className="text-sm text-red-700 mb-3 ml-1">
+                                                                    Los siguientes números de teléfono tienen registrados <strong>más de 3 niños</strong>, lo cual es inusual:
+                                                                </p>
+                                                                <div className="overflow-x-auto bg-white rounded-lg border border-red-100 shadow-sm">
+                                                                    <table className="min-w-full text-sm text-left">
+                                                                        <thead className="bg-red-50/50">
+                                                                            <tr>
+                                                                                <th className="px-4 py-2 text-red-900 font-bold border-b border-red-100">Teléfono</th>
+                                                                                <th className="px-4 py-2 text-red-900 font-bold text-right border-b border-red-100">Cantidad de Niños</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-red-50">
+                                                                            {stats.redFlags.map((item, idx) => (
+                                                                                <tr key={idx} className="hover:bg-red-50/30 transition-colors">
+                                                                                    <td className="px-4 py-2 text-slate-700 font-mono">{item.phone}</td>
+                                                                                    <td className="px-4 py-2 text-red-600 font-bold text-right">{item.count}</td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </details>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                                                    {/* Distributor Chart (Bar) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col md:col-span-2 lg:col-span-3">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                            <User className="w-4 h-4 text-blue-600" /> Tickets por Responsable
+                                                        </h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={350}>
+                                                                <BarChart data={stats?.distributorData || []} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" interval={0} />
+                                                                    <YAxis allowDecimals={false} />
+                                                                    <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                                                    <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={40}>
+                                                                        {
+                                                                            (stats?.distributorData || []).map((entry, index) => (
+                                                                                <Cell key={`cell-${index}`} fill={['#2563eb', '#3b82f6', '#60a5fa'][index % 3] || '#3b82f6'} />
+                                                                            ))
+                                                                        }
+                                                                    </Bar>
+                                                                </BarChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Gender Chart (Pie) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><PieChart className="w-4 h-4 text-purple-500" /> Género</h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={250}>
+                                                                <PieChart>
+                                                                    <Pie
+                                                                        data={stats?.genderData || []}
+                                                                        cx="50%"
+                                                                        cy="50%"
+                                                                        innerRadius={60}
+                                                                        outerRadius={80}
+                                                                        paddingAngle={5}
+                                                                        dataKey="value"
+                                                                    >
+                                                                        {(stats?.genderData || []).map((entry, index) => (
+                                                                            <Cell key={`cell-${index}`} fill={['#3b82f6', '#ec4899', '#a855f7'][index % 3]} />
+                                                                        ))}
+                                                                    </Pie>
+                                                                    <RechartsTooltip />
+                                                                    <Legend verticalAlign="bottom" height={36} />
+                                                                </PieChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                        <div className="text-center text-sm text-slate-500 mt-2">
+                                                            Total Niños/as: <span className="font-bold text-slate-800">{normalizedRegistrations.reduce((acc, r) => acc + r.children.length, 0)}</span>
+                                                        </div>
+                                                    </div>
+                                                    {/* Delivery Progress (Pie) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600" /> Progreso Entrega</h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={250}>
+                                                                <PieChart>
+                                                                    <Pie
+                                                                        data={stats?.deliveryProgressData || []}
+                                                                        cx="50%"
+                                                                        cy="50%"
+                                                                        innerRadius={60}
+                                                                        outerRadius={80}
+                                                                        paddingAngle={5}
+                                                                        dataKey="value"
+                                                                    >
+                                                                        {(stats?.deliveryProgressData || []).map((entry, index) => (
+                                                                            <Cell key={`cell-${index}`} fill={entry.name === 'Entregados' ? '#16a34a' : '#94a3b8'} />
+                                                                        ))}
+                                                                    </Pie>
+                                                                    <RechartsTooltip />
+                                                                    <Legend verticalAlign="bottom" height={36} />
+                                                                </PieChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                        <div className="text-center text-sm text-slate-500 mt-2">
+                                                            {stats?.deliveryProgressData.find(d => d.name === 'Entregados')?.value || 0} Entregados / {registrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} Total
+                                                        </div>
+                                                    </div>
+
+
+                                                    {/* Age Distribution (Bar) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><Contact className="w-4 h-4 text-orange-500" /> Edades (0-12)</h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={250}>
+                                                                <BarChart data={stats?.ageData || []}>
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                    <XAxis dataKey="age" tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={60} />
+                                                                    <YAxis allowDecimals={false} />
+                                                                    <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                                                    <Bar dataKey="count" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+                                                                </BarChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Top Colonies (Bar - Vertical) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                            <MapPin className="w-4 h-4 text-purple-500" /> Top Lugares
+                                                        </h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={250}>
+                                                                <BarChart data={(stats?.colonyData || []).slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                                                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                                    <XAxis type="number" orientation="top" />
+                                                                    <XAxis type="number" hide />
                                                                     <YAxis
-                                                                        dataKey="name" // Use full name here
+                                                                        dataKey="displayName"
                                                                         type="category"
-                                                                        width={150}
+                                                                        width={90}
                                                                         tick={{ fontSize: 10 }}
                                                                         interval={0}
                                                                     />
                                                                     <RechartsTooltip
                                                                         contentStyle={{ fontSize: '12px' }}
-                                                                        cursor={{ fill: '#f1f5f9' }}
+                                                                        cursor={{ fill: 'transparent' }}
                                                                     />
-                                                                    <Legend iconType="circle" />
-                                                                    {/* Dynamic Stacked Bars for Distributors */}
-                                                                    {/* We need a color for each distributor. We can cycle through a palette. */}
-                                                                    {(config.ticketDistributors || []).concat([{ name: 'Desconocido', phone: '' }, { name: 'Otros / Sin Asignar', phone: '' }]).map((dist, idx) => {
-                                                                        const colors = [
-                                                                            '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981',
-                                                                            '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef',
-                                                                            '#f43f5e', '#64748b'
-                                                                        ];
-                                                                        const color = colors[idx % colors.length];
-                                                                        return (
-                                                                            <Bar
-                                                                                key={dist.name}
-                                                                                dataKey={dist.name}
-                                                                                stackId="a"
-                                                                                fill={color}
-                                                                                radius={[0, 0, 0, 0]}
-                                                                                barSize={15}
-                                                                            />
-                                                                        );
-                                                                    })}
+                                                                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
                                                                 </BarChart>
                                                             </ResponsiveContainer>
                                                         </div>
                                                     </div>
+
+                                                    {/* Full Colonies List (Scrollable Chart) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col col-span-1 md:col-span-2 lg:col-span-4">
+                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                            <MapPin className="w-4 h-4 text-indigo-500" /> Distribución Completa de Lugares ({stats?.colonyData?.length || 0})
+                                                        </h4>
+                                                        <div className="flex-grow overflow-y-auto max-h-[500px] border border-slate-100 rounded-lg p-2">
+                                                            {/* Force height based on number of items to make it scrollable properly */}
+                                                            <div style={{ height: Math.max(400, (stats?.colonyData?.length || 0) * 30) }}>
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart data={stats?.colonyData || []} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                                        <XAxis type="number" orientation="top" />
+                                                                        <YAxis
+                                                                            dataKey="name" // Use full name here
+                                                                            type="category"
+                                                                            width={150}
+                                                                            tick={{ fontSize: 10 }}
+                                                                            interval={0}
+                                                                        />
+                                                                        <RechartsTooltip
+                                                                            contentStyle={{ fontSize: '12px' }}
+                                                                            cursor={{ fill: '#f1f5f9' }}
+                                                                        />
+                                                                        <Legend iconType="circle" />
+                                                                        {/* Dynamic Stacked Bars for Distributors */}
+                                                                        {/* We need a color for each distributor. We can cycle through a palette. */}
+                                                                        {(config.ticketDistributors || []).concat([{ name: 'Desconocido', phone: '' }, { name: 'Otros / Sin Asignar', phone: '' }]).map((dist, idx) => {
+                                                                            const colors = [
+                                                                                '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981',
+                                                                                '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef',
+                                                                                '#f43f5e', '#64748b'
+                                                                            ];
+                                                                            const color = colors[idx % colors.length];
+                                                                            return (
+                                                                                <Bar
+                                                                                    key={dist.name}
+                                                                                    dataKey={dist.name}
+                                                                                    stackId="a"
+                                                                                    fill={color}
+                                                                                    radius={[0, 0, 0, 0]}
+                                                                                    barSize={15}
+                                                                                />
+                                                                            );
+                                                                        })}
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Timeline (Area) */}
+                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
+                                                        <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
+                                                        <div className="flex-grow">
+                                                            <ResponsiveContainer width="100%" height={200}>
+                                                                <AreaChart data={stats?.timelineData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                                    <defs>
+                                                                        <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                                                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                                                                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                                                        </linearGradient>
+                                                                    </defs>
+                                                                    <XAxis dataKey="date" />
+                                                                    <YAxis />
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                                    <RechartsTooltip />
+                                                                    <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorCount)" />
+                                                                </AreaChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+
                                                 </div>
 
-                                                {/* Timeline (Area) */}
-                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
-                                                    <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
-                                                    <div className="flex-grow">
-                                                        <ResponsiveContainer width="100%" height={200}>
-                                                            <AreaChart data={stats?.timelineData || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                                <defs>
-                                                                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                                                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                                                    </linearGradient>
-                                                                </defs>
-                                                                <XAxis dataKey="date" />
-                                                                <YAxis />
-                                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                                <RechartsTooltip />
-                                                                <Area type="monotone" dataKey="count" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorCount)" />
-                                                            </AreaChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                </div>
+                                                {/* Detailed List (Collapsible or Scrollable) */}
+                                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm w-full">
+                                                    <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                        <div>
+                                                            <h4 className="font-semibold text-slate-800">Registros Recientes</h4>
+                                                            <span className="text-xs text-slate-500">
+                                                                Mostrando {filteredRegistrations.length} familias ({filteredRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} tickets)
+                                                            </span>
+                                                        </div>
 
-                                            </div>
-
-                                            {/* Detailed List (Collapsible or Scrollable) */}
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm w-full">
-                                                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                                    <div>
-                                                        <h4 className="font-semibold text-slate-800">Registros Recientes</h4>
-                                                        <span className="text-xs text-slate-500">
-                                                            Mostrando {filteredRegistrations.length} familias ({filteredRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} tickets)
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Buscar por nombre, invitación..."
-                                                            value={searchTerm}
-                                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64"
-                                                        />
-                                                        <button onClick={handleExportPDF} disabled={isLoading} className="bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm whitespace-nowrap disabled:opacity-50">
-                                                            {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Download size={16} />}
-                                                            <span className="hidden sm:inline">Exportar PDF</span>
-                                                        </button>
-                                                        {selectedIds.size > 0 && (
-                                                            <button
-                                                                onClick={handleBulkDelete}
-                                                                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                                Borrar ({selectedIds.size})
+                                                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Buscar por nombre, invitación..."
+                                                                value={searchTerm}
+                                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                                className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64"
+                                                            />
+                                                            <button onClick={handleExportPDF} disabled={isLoading} className="bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm whitespace-nowrap disabled:opacity-50">
+                                                                {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Download size={16} />}
+                                                                <span className="hidden sm:inline">Exportar PDF</span>
                                                             </button>
-                                                        )}
+                                                            {selectedIds.size > 0 && (
+                                                                <button
+                                                                    onClick={handleBulkDelete}
+                                                                    className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                    Borrar ({selectedIds.size})
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
 
-                                                {/* Desktop Table View */}
-                                                <div className="hidden md:block overflow-x-auto flex-grow">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
-                                                            <tr>
-                                                                <th className="px-6 py-3 w-4">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        onChange={handleSelectAll}
-                                                                        checked={filteredRegistrations.length > 0 && selectedIds.size === filteredRegistrations.length}
-                                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                    />
-                                                                </th>
-                                                                <th className="px-6 py-3">Nombre</th>
-                                                                <th className="px-6 py-3">Teléfono</th>
-                                                                <th className="px-6 py-3">Invitación</th>
-                                                                <th className="px-6 py-3">Niños</th>
-                                                                <th className="px-6 py-3"></th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
-                                                                const distributor = distName;
-                                                                const isExpanded = expandedGroups.has(distributor);
-                                                                return (
-                                                                    <React.Fragment key={distributor}>
-                                                                        <tr
-                                                                            onClick={() => toggleGroup(distributor)}
-                                                                            className="bg-slate-50/80 hover:bg-slate-100 cursor-pointer transition-colors"
-                                                                        >
-                                                                            <td colSpan={6} className="px-6 py-3 border-y border-slate-200">
-                                                                                <div className="flex items-center gap-2 font-bold text-slate-700 text-xs uppercase tracking-wider">
-                                                                                    {isExpanded ? (
-                                                                                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                                                                                    ) : (
-                                                                                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                                                                                    )}
-                                                                                    {distributor}
-                                                                                    <div className="flex gap-2 ml-3">
-                                                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                            {regs.length} Familias
-                                                                                        </span>
-                                                                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                            {relevantTickets} Juguetes  {/* USES PRE-CALCULATED RELEVANT SUM */}
-                                                                                        </span>
-                                                                                        <button
-                                                                                            onClick={(e) => { e.stopPropagation(); handleExportPDF(regs, distributor); }}
-                                                                                            className="bg-white/50 hover:bg-white border border-slate-300 text-slate-700 px-2 py-0.5 rounded text-[10px] flex items-center gap-1 shadow-sm transition-all"
-                                                                                        >
-                                                                                            <Download className="w-3 h-3" /> PDF Lote
-                                                                                        </button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                        {isExpanded && regs.map((reg) => (
-                                                                            <React.Fragment key={reg.id}>
-                                                                                <tr className={`hover:bg-slate-50 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
-                                                                                    <td className="px-6 py-4">
-                                                                                        <input
-                                                                                            type="checkbox"
-                                                                                            checked={selectedIds.has(reg.id)}
-                                                                                            onChange={() => handleSelectRow(reg.id)}
-                                                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-6 py-4 font-medium text-slate-900">
-                                                                                        {reg.parentName || reg.fullName}
-                                                                                        {/* Show children count badge if not expanded? No, we show children below */}
-                                                                                    </td>
-                                                                                    <td className="px-6 py-4 text-slate-600 md:whitespace-nowrap">{reg.whatsapp}</td>
-                                                                                    <td className="px-6 py-4">
-                                                                                        {/* Legacy or Summary of Invites */}
-                                                                                        <div className="text-xs text-slate-500 font-mono">
-                                                                                            {reg.children && reg.children.length > 0 ? (
-                                                                                                <span className="bg-slate-100 px-2 py-1 rounded">{reg.children.length} Tickets</span>
-                                                                                            ) : (
-                                                                                                reg.inviteNumber
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td className="px-6 py-4">
-                                                                                        {reg.children && reg.children.length > 0 ? (
-                                                                                            <div className="space-y-1">
-                                                                                                {reg.children.map((child, idx) => (
-                                                                                                    <div key={idx} className={`flex items-center justify-between text-xs border p-1.5 rounded gap-2 ${child.status === 'delivered' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'}`}>
-                                                                                                        <div className="flex flex-col">
-                                                                                                            <div className="flex items-center gap-1">
-                                                                                                                <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
-                                                                                                                {child.status === 'delivered' && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded-full font-medium">Entregado</span>}
-                                                                                                            </div>
-                                                                                                            <span className="text-[10px] text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</span>
-                                                                                                        </div>
-                                                                                                        <button
-                                                                                                            onClick={() => setViewingQR({
-                                                                                                                name: child.fullName || `Niño #${idx + 1}`,
-                                                                                                                invite: child.inviteNumber,
-                                                                                                                data: JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName })
-                                                                                                            })}
-                                                                                                            className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
-                                                                                                            title="Ver QR"
-                                                                                                        >
-                                                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
-                                                                                                        </button>
-                                                                                                    </div>
-                                                                                                ))}
-                                                                                            </div>
+                                                    {/* Desktop Table View */}
+                                                    <div className="hidden md:block overflow-x-auto flex-grow">
+                                                        <table className="w-full text-sm text-left">
+                                                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
+                                                                <tr>
+                                                                    <th className="px-6 py-3 w-4">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            onChange={handleSelectAll}
+                                                                            checked={filteredRegistrations.length > 0 && selectedIds.size === filteredRegistrations.length}
+                                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                        />
+                                                                    </th>
+                                                                    <th className="px-6 py-3">Nombre</th>
+                                                                    <th className="px-6 py-3">Teléfono</th>
+                                                                    <th className="px-6 py-3">Invitación</th>
+                                                                    <th className="px-6 py-3">Niños</th>
+                                                                    <th className="px-6 py-3"></th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
+                                                                    const distributor = distName;
+                                                                    const isExpanded = expandedGroups.has(distributor);
+                                                                    return (
+                                                                        <React.Fragment key={distributor}>
+                                                                            <tr
+                                                                                onClick={() => toggleGroup(distributor)}
+                                                                                className="bg-slate-50/80 hover:bg-slate-100 cursor-pointer transition-colors"
+                                                                            >
+                                                                                <td colSpan={6} className="px-6 py-3 border-y border-slate-200">
+                                                                                    <div className="flex items-center gap-2 font-bold text-slate-700 text-xs uppercase tracking-wider">
+                                                                                        {isExpanded ? (
+                                                                                            <ChevronDown className="w-4 h-4 text-slate-400" />
                                                                                         ) : (
-                                                                                            /* Legacy Display - Now Standardized */
-                                                                                            <div className="space-y-1">
-                                                                                                {Array.from({ length: Math.max(1, reg.childCount || 1) }).map((_, i) => {
-                                                                                                    // Virtual Child for Legacy Data
-                                                                                                    const legacyName = reg.fullName || "Sin Nombre";
-                                                                                                    const legacyInvite = reg.inviteNumber || "---";
-                                                                                                    const legacyAge = reg.childAge || 0;
-                                                                                                    const legacyGender = reg.genderSelection || "Niño/a";
-
-                                                                                                    return (
-                                                                                                        <div key={`legacy-${i}`} className="flex items-center justify-between text-xs bg-orange-50/50 border border-orange-200 p-1.5 rounded gap-2">
+                                                                                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                                                                                        )}
+                                                                                        {distributor}
+                                                                                        <div className="flex gap-2 ml-3">
+                                                                                            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                                {regs.length} Familias
+                                                                                            </span>
+                                                                                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                                {relevantTickets} Juguetes  {/* USES PRE-CALCULATED RELEVANT SUM */}
+                                                                                            </span>
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); handleExportPDF(regs, distributor); }}
+                                                                                                className="bg-white/50 hover:bg-white border border-slate-300 text-slate-700 px-2 py-0.5 rounded text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                                                                                            >
+                                                                                                <Download className="w-3 h-3" /> PDF Lote
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                            {isExpanded && regs.map((reg) => (
+                                                                                <React.Fragment key={reg.id}>
+                                                                                    <tr className={`hover:bg-slate-50 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/50' : ''}`}>
+                                                                                        <td className="px-6 py-4">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                checked={selectedIds.has(reg.id)}
+                                                                                                onChange={() => handleSelectRow(reg.id)}
+                                                                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                                            />
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4 font-medium text-slate-900">
+                                                                                            {reg.parentName || reg.fullName}
+                                                                                            {/* Show children count badge if not expanded? No, we show children below */}
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4 text-slate-600 md:whitespace-nowrap">{reg.whatsapp}</td>
+                                                                                        <td className="px-6 py-4">
+                                                                                            {/* Legacy or Summary of Invites */}
+                                                                                            <div className="text-xs text-slate-500 font-mono">
+                                                                                                {reg.children && reg.children.length > 0 ? (
+                                                                                                    <span className="bg-slate-100 px-2 py-1 rounded">{reg.children.length} Tickets</span>
+                                                                                                ) : (
+                                                                                                    reg.inviteNumber
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4">
+                                                                                            {reg.children && reg.children.length > 0 ? (
+                                                                                                <div className="space-y-1">
+                                                                                                    {reg.children.map((child, idx) => (
+                                                                                                        <div key={idx} className={`flex items-center justify-between text-xs border p-1.5 rounded gap-2 ${child.status === 'delivered' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'}`}>
                                                                                                             <div className="flex flex-col">
-                                                                                                                <span className="font-bold text-slate-700">{legacyName} <span className="text-[9px] text-orange-600">(Legacy)</span></span>
-                                                                                                                <span className="text-[10px] text-slate-500">{legacyAge} años - {legacyGender} - {legacyInvite}</span>
+                                                                                                                <div className="flex items-center gap-1">
+                                                                                                                    <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
+                                                                                                                    {child.status === 'delivered' && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded-full font-medium">Entregado</span>}
+                                                                                                                </div>
+                                                                                                                <span className="text-[10px] text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</span>
                                                                                                             </div>
                                                                                                             <button
-                                                                                                                onClick={(e) => {
-                                                                                                                    e.stopPropagation();
-                                                                                                                    setViewingQR({
-                                                                                                                        name: legacyName,
-                                                                                                                        invite: legacyInvite,
-                                                                                                                        data: JSON.stringify({
-                                                                                                                            parentId: reg.id,
-                                                                                                                            childId: 'legacy',
-                                                                                                                            invite: legacyInvite,
-                                                                                                                            name: legacyName,
-                                                                                                                            isLegacy: true
-                                                                                                                        })
-                                                                                                                    });
-                                                                                                                }}
+                                                                                                                onClick={() => setViewingQR({
+                                                                                                                    name: child.fullName || `Niño #${idx + 1}`,
+                                                                                                                    invite: child.inviteNumber,
+                                                                                                                    data: JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName })
+                                                                                                                })}
                                                                                                                 className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
-                                                                                                                title="Ver QR (Generado)"
+                                                                                                                title="Ver QR"
                                                                                                             >
                                                                                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
                                                                                                             </button>
                                                                                                         </div>
-                                                                                                    );
-                                                                                                })}
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </td>
-                                                                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                                                                        <button
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                handleWhatsApp(reg);
-                                                                                            }}
-                                                                                            className="text-slate-400 hover:text-green-500 transition-colors p-2"
-                                                                                            title="Enviar por WhatsApp"
-                                                                                        >
-                                                                                            <MessageSquare className="w-4 h-4" />
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                setEditingReg(reg);
-                                                                                            }}
-                                                                                            className="text-slate-400 hover:text-blue-500 transition-colors p-2"
-                                                                                            title="Editar Registro"
-                                                                                        >
-                                                                                            <Pencil className="w-4 h-4" />
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                handleDelete(reg.id, reg.parentName || reg.fullName || 'Desconocido');
-                                                                                            }}
-                                                                                            className="text-slate-400 hover:text-red-500 transition-colors p-2"
-                                                                                            title="Eliminar Registro"
-                                                                                        >
-                                                                                            <Trash2 className="w-4 h-4" />
-                                                                                        </button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            </React.Fragment>
-                                                                        ))}
-                                                                    </React.Fragment>
-                                                                );
-                                                            })}
-                                                            {groupedRegistrations.length === 0 && (
-                                                                <tr>
-                                                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">
-                                                                        No se encontraron registros recientes.
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                /* Legacy Display - Now Standardized */
+                                                                                                <div className="space-y-1">
+                                                                                                    {Array.from({ length: Math.max(1, reg.childCount || 1) }).map((_, i) => {
+                                                                                                        // Virtual Child for Legacy Data
+                                                                                                        const legacyName = reg.fullName || "Sin Nombre";
+                                                                                                        const legacyInvite = reg.inviteNumber || "---";
+                                                                                                        const legacyAge = reg.childAge || 0;
+                                                                                                        const legacyGender = reg.genderSelection || "Niño/a";
 
-                                                {/* Mobile Card View */}
-                                                <div className="md:hidden">
-                                                    <div className="divide-y divide-slate-100">
+                                                                                                        return (
+                                                                                                            <div key={`legacy-${i}`} className="flex items-center justify-between text-xs bg-orange-50/50 border border-orange-200 p-1.5 rounded gap-2">
+                                                                                                                <div className="flex flex-col">
+                                                                                                                    <span className="font-bold text-slate-700">{legacyName} <span className="text-[9px] text-orange-600">(Legacy)</span></span>
+                                                                                                                    <span className="text-[10px] text-slate-500">{legacyAge} años - {legacyGender} - {legacyInvite}</span>
+                                                                                                                </div>
+                                                                                                                <button
+                                                                                                                    onClick={(e) => {
+                                                                                                                        e.stopPropagation();
+                                                                                                                        setViewingQR({
+                                                                                                                            name: legacyName,
+                                                                                                                            invite: legacyInvite,
+                                                                                                                            data: JSON.stringify({
+                                                                                                                                parentId: reg.id,
+                                                                                                                                childId: 'legacy',
+                                                                                                                                invite: legacyInvite,
+                                                                                                                                name: legacyName,
+                                                                                                                                isLegacy: true
+                                                                                                                            })
+                                                                                                                        });
+                                                                                                                    }}
+                                                                                                                    className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
+                                                                                                                    title="Ver QR (Generado)"
+                                                                                                                >
+                                                                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        );
+                                                                                                    })}
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </td>
+                                                                                        <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                                                                            <button
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    handleWhatsApp(reg);
+                                                                                                }}
+                                                                                                className="text-slate-400 hover:text-green-500 transition-colors p-2"
+                                                                                                title="Enviar por WhatsApp"
+                                                                                            >
+                                                                                                <MessageSquare className="w-4 h-4" />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    setEditingReg(reg);
+                                                                                                }}
+                                                                                                className="text-slate-400 hover:text-blue-500 transition-colors p-2"
+                                                                                                title="Editar Registro"
+                                                                                            >
+                                                                                                <Pencil className="w-4 h-4" />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    handleDelete(reg.id, reg.parentName || reg.fullName || 'Desconocido');
+                                                                                                }}
+                                                                                                className="text-slate-400 hover:text-red-500 transition-colors p-2"
+                                                                                                title="Eliminar Registro"
+                                                                                            >
+                                                                                                <Trash2 className="w-4 h-4" />
+                                                                                            </button>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                </React.Fragment>
+                                                                            ))}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
+                                                                {groupedRegistrations.length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">
+                                                                            No se encontraron registros recientes.
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    {/* Mobile Card View */}
+                                                    <div className="md:hidden">
                                                         <div className="divide-y divide-slate-100">
-                                                            {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
-                                                                const distributor = distName;
-                                                                const isExpanded = expandedGroups.has(distributor);
-                                                                return (
-                                                                    <React.Fragment key={distributor}>
-                                                                        <div
-                                                                            onClick={() => toggleGroup(distributor)}
-                                                                            className="bg-slate-50/90 px-4 py-3 border-b border-slate-200 sticky top-0 backdrop-blur-sm z-10 flex justify-between items-center cursor-pointer active:bg-slate-200 transition-colors"
-                                                                        >
-                                                                            <div className="font-bold text-slate-700 text-xs uppercase tracking-wide flex items-center gap-2 flex-wrap">
-                                                                                {distributor}
-                                                                                <div className="flex gap-2">
-                                                                                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                        {regs.length} Fam
-                                                                                    </span>
-                                                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
-                                                                                        {relevantTickets} Jug
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                            {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
-                                                                        </div>
-
-                                                                        {isExpanded && regs.map((reg) => (
+                                                            <div className="divide-y divide-slate-100">
+                                                                {groupedRegistrations.map(({ distName, regs, relevantTickets }) => {
+                                                                    const distributor = distName;
+                                                                    const isExpanded = expandedGroups.has(distributor);
+                                                                    return (
+                                                                        <React.Fragment key={distributor}>
                                                                             <div
-                                                                                key={reg.id}
-                                                                                className={`p-4 flex flex-col gap-3 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
-                                                                                onClick={() => {
-                                                                                    // Optional: Toggle selection on click
-                                                                                }}
+                                                                                onClick={() => toggleGroup(distributor)}
+                                                                                className="bg-slate-50/90 px-4 py-3 border-b border-slate-200 sticky top-0 backdrop-blur-sm z-10 flex justify-between items-center cursor-pointer active:bg-slate-200 transition-colors"
                                                                             >
-                                                                                <div className="flex justify-between items-start">
-                                                                                    <div className="flex items-start gap-3">
-                                                                                        <input
-                                                                                            type="checkbox"
-                                                                                            checked={selectedIds.has(reg.id)}
-                                                                                            onChange={() => handleSelectRow(reg.id)}
-                                                                                            className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
-                                                                                        />
-                                                                                        <div>
-                                                                                            <div className="font-bold text-slate-900">{reg.fullName}</div>
-                                                                                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                                                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            handleDelete(reg.id, reg.fullName);
-                                                                                        }}
-                                                                                        className="text-slate-400 hover:text-red-500 p-1"
-                                                                                    >
-                                                                                        <Trash2 className="w-5 h-5" />
-                                                                                    </button>
-                                                                                </div>
-
-                                                                                <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
-                                                                                    <div className="flex items-center gap-1.5 text-slate-600">
-                                                                                        <MessageSquare className="w-3.5 h-3.5 text-green-600" />
-                                                                                        {reg.whatsapp}
-                                                                                    </div>
-                                                                                    <div className="flex items-center justify-end gap-1.5">
-                                                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
-                                                                                            reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
-                                                                                                'bg-purple-100 text-purple-700'
-                                                                                            }`}>
-                                                                                            {reg.childCount} {reg.genderSelection}
+                                                                                <div className="font-bold text-slate-700 text-xs uppercase tracking-wide flex items-center gap-2 flex-wrap">
+                                                                                    {distributor}
+                                                                                    <div className="flex gap-2">
+                                                                                        <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                            {regs.length} Fam
+                                                                                        </span>
+                                                                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">
+                                                                                            {relevantTickets} Jug
                                                                                         </span>
                                                                                     </div>
                                                                                 </div>
+                                                                                {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
                                                                             </div>
-                                                                        ))}
-                                                                    </React.Fragment>
-                                                                );
-                                                            })}
-                                                        </div>        </div>
-                                                    {filteredRegistrations.length === 0 && (
-                                                        <div className="p-8 text-center text-slate-500 text-sm">
-                                                            No se encontraron registros.
-                                                        </div>
-                                                    )}
+
+                                                                            {isExpanded && regs.map((reg) => (
+                                                                                <div
+                                                                                    key={reg.id}
+                                                                                    className={`p-4 flex flex-col gap-3 animate-fade-in ${selectedIds.has(reg.id) ? 'bg-blue-50/30' : ''}`}
+                                                                                    onClick={() => {
+                                                                                        // Optional: Toggle selection on click
+                                                                                    }}
+                                                                                >
+                                                                                    <div className="flex justify-between items-start">
+                                                                                        <div className="flex items-start gap-3">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                checked={selectedIds.has(reg.id)}
+                                                                                                onChange={() => handleSelectRow(reg.id)}
+                                                                                                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-5 h-5"
+                                                                                            />
+                                                                                            <div>
+                                                                                                <div className="font-bold text-slate-900">{reg.fullName}</div>
+                                                                                                <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                                                                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{reg.inviteNumber}</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleDelete(reg.id, reg.fullName);
+                                                                                            }}
+                                                                                            className="text-slate-400 hover:text-red-500 p-1"
+                                                                                        >
+                                                                                            <Trash2 className="w-5 h-5" />
+                                                                                        </button>
+                                                                                    </div>
+
+                                                                                    <div className="pl-8 grid grid-cols-2 gap-2 text-sm">
+                                                                                        <div className="flex items-center gap-1.5 text-slate-600">
+                                                                                            <MessageSquare className="w-3.5 h-3.5 text-green-600" />
+                                                                                            {reg.whatsapp}
+                                                                                        </div>
+                                                                                        <div className="flex items-center justify-end gap-1.5">
+                                                                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.genderSelection === 'niños' ? 'bg-blue-100 text-blue-700' :
+                                                                                                reg.genderSelection === 'niñas' ? 'bg-pink-100 text-pink-700' :
+                                                                                                    'bg-purple-100 text-purple-700'
+                                                                                                }`}>
+                                                                                                {reg.childCount} {reg.genderSelection}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
+                                                            </div>        </div>
+                                                        {filteredRegistrations.length === 0 && (
+                                                            <div className="p-8 text-center text-slate-500 text-sm">
+                                                                No se encontraron registros.
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                        </>
-                                    )}
-                                </div>
-                            )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
 
-                            {
-                                activeTab === 'data' && (
-                                    <div className="space-y-6 animate-fade-in">
-                                        <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
+                                {
+                                    activeTab === 'data' && (
+                                        <div className="space-y-6 animate-fade-in">
+                                            <SectionHeader title="Base de Datos" description="Descarga los registros obtenidos." />
 
-                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
-                                            <div className="bg-blue-50 p-4 rounded-full">
-                                                <Database className="w-12 h-12 text-blue-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
-                                                <div className="text-slate-500">Registros Totales</div>
-                                            </div>
-
-                                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                                                <button
-                                                    onClick={() => handleExport('csv')}
-                                                    className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                                >
-                                                    <Download className="w-4 h-4" /> Exportar CSV
-                                                </button>
-                                                <button
-                                                    onClick={() => handleExport('xlsx')}
-                                                    className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
-                                                >
-                                                    <Download className="w-4 h-4" /> Exportar Excel
-                                                </button>
-                                            </div>
-
-                                            <div className="w-full max-w-md border-t border-slate-100 pt-6">
-                                                <h4 className="text-sm font-bold text-slate-700 mb-3 text-left">Mantenimiento</h4>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (confirm("Esto buscará y liberará invitaciones marcadas como 'ocupadas' pero cuyo registro ya no existe. ¿Deseas continuar?")) {
-                                                            setIsLoading(true);
-                                                            const res = await cleanupOrphanedInvites();
-                                                            setIsLoading(false);
-                                                            alert(res.message);
-                                                        }
-                                                    }}
-                                                    className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 py-2 px-4 rounded-lg transition-colors font-medium text-sm flex items-center justify-center gap-2"
-                                                >
-                                                    <ShieldCheck className="w-4 h-4" />
-                                                    Liberar Invitaciones Huérfanas (Reparar DB)
-                                                </button>
-                                            </div>
-
-                                        </div>
-
-                                        <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
-                                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-6">
+                                                <div className="bg-blue-50 p-4 rounded-full">
+                                                    <Database className="w-12 h-12 text-blue-600" />
                                                 </div>
-                                                <div className="flex-grow">
-                                                    <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
-                                                    <p className="text-sm text-red-700 mb-4">
-                                                        Las siguientes acciones son destructivas y no se pueden deshacer.
-                                                    </p>
+                                                <div>
+                                                    <div className="text-4xl font-bold text-slate-800">{registrationCount}</div>
+                                                    <div className="text-slate-500">Registros Totales</div>
+                                                </div>
+
+                                                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
                                                     <button
-                                                        onClick={handleResetDatabase}
-                                                        className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                        onClick={() => handleExport('csv')}
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
-                                                        Eliminar Toda la Base de Datos
+                                                        <Download className="w-4 h-4" /> Exportar CSV
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleExport('xlsx')}
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Exportar Excel
                                                     </button>
                                                 </div>
+
+                                                <div className="w-full max-w-md border-t border-slate-100 pt-6">
+                                                    <h4 className="text-sm font-bold text-slate-700 mb-3 text-left">Mantenimiento</h4>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (confirm("Esto buscará y liberará invitaciones marcadas como 'ocupadas' pero cuyo registro ya no existe. ¿Deseas continuar?")) {
+                                                                setIsLoading(true);
+                                                                const res = await cleanupOrphanedInvites();
+                                                                setIsLoading(false);
+                                                                alert(res.message);
+                                                            }
+                                                        }}
+                                                        className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 py-2 px-4 rounded-lg transition-colors font-medium text-sm flex items-center justify-center gap-2"
+                                                    >
+                                                        <ShieldCheck className="w-4 h-4" />
+                                                        Liberar Invitaciones Huérfanas (Reparar DB)
+                                                    </button>
+                                                </div>
+
+                                            </div>
+
+                                            <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="bg-red-100 p-3 rounded-full flex-shrink-0">
+                                                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                                                    </div>
+                                                    <div className="flex-grow">
+                                                        <h3 className="text-lg font-bold text-red-800">Zona de Peligro</h3>
+                                                        <p className="text-sm text-red-700 mb-4">
+                                                            Las siguientes acciones son destructivas y no se pueden deshacer.
+                                                        </p>
+                                                        <button
+                                                            onClick={handleResetDatabase}
+                                                            className="bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 shadow-sm"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                            Eliminar Toda la Base de Datos
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )
-                            }
+                                    )
+                                }
 
-                            {
-                                activeTab === 'scanner' && (
+                                {
+                                    activeTab === 'scanner' && (
+                                        <div className="space-y-6 animate-fade-in">
+                                            <SectionHeader title="Escáner QR" description="Escanea los códigos de las invitaciones para marcar entregas." />
+                                            <div className="bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm min-h-[400px]">
+                                                <ScanInterface />
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+
+
+                                {activeTab === 'audit' && (
                                     <div className="space-y-6 animate-fade-in">
-                                        <SectionHeader title="Escáner QR" description="Escanea los códigos de las invitaciones para marcar entregas." />
-                                        <div className="bg-white p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm min-h-[400px]">
-                                            <ScanInterface />
-                                        </div>
-                                    </div>
-                                )
-                            }
+                                        <SectionHeader title="Auditoría de Tickets" description="Control de faltantes por rango y distribuidor." />
 
-
-
-                            {activeTab === 'audit' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <SectionHeader title="Auditoría de Tickets" description="Control de faltantes por rango y distribuidor." />
-
-                                    <div className="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
-                                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                            <Search className="w-5 h-5 text-slate-500" />
-                                            Consultar Estado de Ticket
-                                        </h3>
-                                        <div className="flex gap-4 items-end">
-                                            <InputGroup
-                                                label="Número de Ticket (ej. 618)"
-                                                value={searchTerm}
-                                                onChange={setSearchTerm}
-                                            />
-                                        </div>
-
-                                        {searchTerm && (
-                                            <div className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
-                                                {(() => {
-                                                    const cleanInput = searchTerm.replace(/\D/g, '');
-                                                    const num = parseInt(cleanInput);
-
-                                                    if (!cleanInput || isNaN(num)) return <p className="text-slate-500 text-sm">Ingrese un número válido.</p>;
-
-                                                    // 1. Check Registration Status
-                                                    const reg = normalizedRegistrations.find(r =>
-                                                        r.children.some(c => c.inviteNumber.includes(num.toString())) // Loose check
-                                                        || r.children.some(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num) // Strict check
-                                                    );
-
-                                                    const childFound = reg?.children.find(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num);
-
-                                                    // 2. Check Distributor Assignment
-                                                    const assignedDistributor = config.ticketDistributors?.find(d =>
-                                                        d.startRange && d.endRange && num >= d.startRange && num <= d.endRange
-                                                    );
-
-                                                    return (
-                                                        <div className="space-y-2 text-sm">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold w-32">Ticket:</span>
-                                                                <span className="font-mono bg-slate-100 px-2 rounded">NI{num.toString().padStart(4, '0')}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold w-32">Estado Registro:</span>
-                                                                {reg ? (
-                                                                    <span className="text-green-600 font-bold flex items-center gap-1">
-                                                                        <CheckCircle className="w-4 h-4" />
-                                                                        Registrado
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-red-600 font-bold flex items-center gap-1">
-                                                                        <XCircle className="w-4 h-4" />
-                                                                        NO REGISTRADO (Disponible)
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {reg && (
-                                                                <>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-bold w-32">Responsable:</span>
-                                                                        <span>{reg.parentName || reg.fullName}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-bold w-32">Beneficiario:</span>
-                                                                        <span>{childFound?.fullName || 'N/A'}</span>
-                                                                    </div>
-                                                                </>
-                                                            )}
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold w-32">Asignado a:</span>
-                                                                {assignedDistributor ? (
-                                                                    <span className="text-blue-600 font-bold">
-                                                                        {assignedDistributor.name} (Rango: {assignedDistributor.startRange}-{assignedDistributor.endRange})
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-orange-500 font-bold flex items-center gap-1">
-                                                                        <AlertTriangle className="w-4 h-4" />
-                                                                        SIN ASIGNAR (Fuera de Rangos)
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {!reg && assignedDistributor && (
-                                                                <div className="mt-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
-                                                                    Este ticket debería aparecer como "Pendiente" en la auditoría de <strong>{assignedDistributor.name}</strong>.
-                                                                </div>
-                                                            )}
-                                                            {!reg && !assignedDistributor && (
-                                                                <div className="mt-2 text-xs text-slate-500 bg-orange-50 p-2 rounded">
-                                                                    Al no estar asignado a ningún rango, este ticket <strong>NO aparecerá</strong> en ninguna auditoría de faltantes.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {distributorAudit.map((audit) => (
-                                            <div key={audit.name} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                                                <div className="p-5 border-b border-slate-100">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <h4 className="font-bold text-slate-800 text-lg">{audit.name}</h4>
-                                                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-mono">
-                                                            {audit.range}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="space-y-3 mt-4">
-                                                        {/* Registered Stats */}
-                                                        <div>
-                                                            <div className="flex justify-between text-xs text-slate-600 mb-1">
-                                                                <span>Ingresados en Sistema</span>
-                                                                <span className="font-bold">{audit.registeredCount} / {audit.totalAssigned}</span>
-                                                            </div>
-                                                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                                                    style={{ width: `${audit.percentRegistered}%` }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Delivered Stats */}
-                                                        <div>
-                                                            <div className="flex justify-between text-xs text-slate-600 mb-1">
-                                                                <span>Juguetes Entregados (Scaneados)</span>
-                                                                <span className="font-bold text-green-600">{audit.deliveredCount}</span>
-                                                            </div>
-                                                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
-                                                                    style={{ width: `${audit.percentDelivered}%` }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Distributor Locations Chart */}
-                                                {audit.allLocations && audit.allLocations.length > 0 && (
-                                                    <div className="px-5 pb-5 pt-2 border-t border-slate-50">
-                                                        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                                            <MapPin size={12} /> Zonas de Influencia ({audit.allLocations.length})
-                                                        </h5>
-
-                                                        <div className="relative border border-slate-100 rounded-lg bg-slate-50/50">
-                                                            <div className="overflow-y-auto max-h-[250px] p-2 custon-scrollbar">
-                                                                <div style={{ height: Math.max(100, audit.allLocations.length * 30) }}>
-                                                                    <ResponsiveContainer width="100%" height="100%">
-                                                                        <BarChart
-                                                                            data={audit.allLocations}
-                                                                            layout="vertical"
-                                                                            margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-                                                                        >
-                                                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                                            <XAxis type="number" hide />
-                                                                            <YAxis
-                                                                                dataKey="name"
-                                                                                type="category"
-                                                                                width={90}
-                                                                                tick={{ fontSize: 10 }}
-                                                                                interval={0}
-                                                                            />
-                                                                            <RechartsTooltip
-                                                                                contentStyle={{ fontSize: '11px', padding: '5px' }}
-                                                                                cursor={{ fill: '#e2e8f0' }}
-                                                                                formatter={(value: any, name: any, props: any) => [value, 'Tickets']}
-                                                                                labelFormatter={(idx) => {
-                                                                                    // We passed index or label? Recharts passes dataKey value usually if category
-                                                                                    // But safety fallback:
-                                                                                    const item = audit.allLocations[idx];
-                                                                                    return item ? item.fullName : '';
-                                                                                }}
-                                                                            />
-                                                                            <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} />
-                                                                        </BarChart>
-                                                                    </ResponsiveContainer>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="p-0 flex-grow bg-slate-50/50 border-t border-slate-100">
-                                                    <details className="group">
-                                                        <summary className="p-4 cursor-pointer text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex justify-between items-center">
-                                                            <span>Tickets Pendientes de Registro ({audit.missingTickets.length})</span>
-                                                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                                                        </summary>
-                                                        <div className="px-4 pb-4">
-                                                            <p className="text-xs text-slate-500 mb-2 italic">
-                                                                Estos tickets están asignados al distribuidor pero NO han sido ingresados al sistema por ningún padre.
-                                                            </p>
-                                                            {audit.missingTickets.length > 0 ? (
-                                                                <div className="mt-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border border-slate-200">
-                                                                    {audit.missingTickets.map(num => (
-                                                                        <span key={num} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-mono border border-red-100">
-                                                                            {`NI${num.toString().padStart(4, '0')}`}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="text-center text-green-600 text-sm py-4 bg-green-50 rounded border border-green-100 mt-2">
-                                                                    ¡Completo! Todos los tickets fueron ingresados al sistema.
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </details>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Phone Audit Section */}
-                                    <div className="mt-8 pt-6 border-t border-slate-200">
-                                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                            <span className="bg-orange-100 text-orange-600 p-1.5 rounded-lg">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
-                                            </span>
-                                            Auditoría de Teléfonos (Formato Incorrecto)
-                                        </h3>
-
-                                        {phoneAudit.length === 0 ? (
-                                            <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-lg flex items-center gap-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>
-                                                Todos los teléfonos tienen el formato correcto (8 dígitos).
-                                            </div>
-                                        ) : (
-                                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                                <div className="p-4 bg-orange-50 border-b border-orange-100 text-orange-800 text-sm">
-                                                    Se encontraron <strong>{phoneAudit.length}</strong> números que no cumplen con el formato de 8 dígitos (ej. 12345678).
-                                                </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                                                            <tr>
-                                                                <th className="p-3">Responsable</th>
-                                                                <th className="p-3">Teléfono (Incorrecto)</th>
-                                                                <th className="p-3">Distribuidor Asignado</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {phoneAudit.map((item, idx) => (
-                                                                <tr key={idx} className="hover:bg-slate-50">
-                                                                    <td className="p-3 font-medium text-slate-900">{item.name}</td>
-                                                                    <td className="p-3">
-                                                                        <span className="font-mono text-red-600 bg-red-50 rounded px-2 py-1 border border-red-100">
-                                                                            {item.phone}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="p-3 text-slate-600">{item.distributor}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {
-                                activeTab === 'wa_list' && (
-                                    <div className="space-y-6 animate-fade-in">
-                                        <div className="flex justify-between items-center">
-                                            <SectionHeader title="Envíos WhatsApp" description="Gestiona los mensajes de confirmación pendientes." />
-                                            <button
-                                                onClick={async () => {
-                                                    const vcfContent = [
-                                                        "BEGIN:VCARD",
-                                                        "VERSION:3.0",
-                                                        "FN:Fundación Bukele",
-                                                        "ORG:Fundación Bukele",
-                                                        "TEL;TYPE=WORK,VOICE:79710214",
-                                                        "EMAIL:contacto@fundacionbukele.org",
-                                                        "END:VCARD"
-                                                    ].join("\n");
-
-                                                    const file = new File([vcfContent], "Contacto_Fundacion.vcf", { type: "text/vcard" });
-
-                                                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                                                        try {
-                                                            await navigator.share({
-                                                                files: [file],
-                                                                title: 'Contacto Fundación Bukele',
-                                                                text: 'Contacto para entregas de juguetes.'
-                                                            });
-                                                        } catch (error) {
-                                                            console.log("Error sharing", error);
-                                                        }
-                                                    } else {
-                                                        // Fallback to download
-                                                        const url = URL.createObjectURL(file);
-                                                        const a = document.createElement("a");
-                                                        a.href = url;
-                                                        a.download = "Contacto_Fundacion.vcf";
-                                                        a.click();
-                                                        URL.revokeObjectURL(url);
-                                                    }
-                                                }}
-                                                className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors"
-                                            >
-                                                <Share2 className="w-4 h-4" />
-                                                Compartir Contacto
-                                            </button>
-                                        </div>
-
-                                        {/* Stats Cards */}
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
-                                                <div className="text-3xl font-bold text-slate-800">{registrations.length}</div>
-                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
-                                            </div>
-                                            <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col items-center">
-                                                <div className="text-3xl font-bold text-green-600">{registrations.filter(r => r.whatsappSent).length}</div>
-                                                <div className="text-xs font-bold text-green-600 uppercase tracking-wide">Enviados</div>
-                                            </div>
-                                            <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col items-center">
-                                                <div className="text-3xl font-bold text-orange-600">{registrations.filter(r => !r.whatsappSent).length}</div>
-                                                <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">Pendientes</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                            <div className="p-4 border-b border-slate-100 flex gap-4 items-center">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Buscar por nombre o teléfono..."
+                                        <div className="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <Search className="w-5 h-5 text-slate-500" />
+                                                Consultar Estado de Ticket
+                                            </h3>
+                                            <div className="flex gap-4 items-end">
+                                                <InputGroup
+                                                    label="Número de Ticket (ej. 618)"
                                                     value={searchTerm}
-                                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                                                    onChange={setSearchTerm}
                                                 />
-                                                <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={showPendingOnly}
-                                                        onChange={(e) => setShowPendingOnly(e.target.checked)}
-                                                        className="w-4 h-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-                                                    />
-                                                    <span className="text-sm font-medium text-slate-700">Solo Pendientes</span>
-                                                </label>
                                             </div>
 
-                                            {filteredRegistrations.length === 0 ? (
-                                                <div className="p-8 text-center text-slate-500">No hay registros</div>
-                                            ) : (
-                                                <div className="overflow-x-auto">
-                                                    {/* Desktop Table */}
-                                                    <table className="w-full text-sm text-left hidden md:table">
-                                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50">
-                                                            <tr>
-                                                                <th className="px-6 py-3">Nombre</th>
-                                                                <th className="px-6 py-3">WhatsApp</th>
-                                                                <th className="px-6 py-3 text-center">Estado</th>
-                                                                <th className="px-6 py-3">Niños</th>
-                                                                <th className="px-6 py-3 text-right">Acción</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {filteredRegistrations.map(reg => (
-                                                                <tr key={reg.id} className="hover:bg-slate-50">
-                                                                    <td className="px-6 py-4 font-medium text-slate-900">
-                                                                        {reg.parentName || reg.fullName}
-                                                                        <div className="text-xs text-slate-500">{reg.ticketDistributor || 'Sin Distribuidor'}</div>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
-                                                                    <td className="px-6 py-4 text-center">
-                                                                        {reg.whatsappSent ? (
-                                                                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
-                                                                                <MessageSquare size={12} className="fill-green-700" /> Enviado
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 px-2 py-1 rounded-full text-xs font-bold">
-                                                                                <Loader2 size={12} /> Pendiente
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-6 py-4">
-                                                                        <span className="bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-600">
-                                                                            {reg.children?.length || reg.childCount || 0}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-right">
-                                                                        <div className="flex justify-end gap-2">
-                                                                            <button
-                                                                                onClick={() => handleWhatsApp(reg)}
-                                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1 ${reg.whatsappSent ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-green-500 hover:bg-green-600 text-white'}`}
-                                                                            >
-                                                                                <MessageSquare size={14} /> {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                            {searchTerm && (
+                                                <div className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+                                                    {(() => {
+                                                        const cleanInput = searchTerm.replace(/\D/g, '');
+                                                        const num = parseInt(cleanInput);
 
-                                                    {/* Mobile Cards */}
-                                                    <div className="md:hidden divide-y divide-slate-100">
-                                                        {filteredRegistrations.map(reg => (
-                                                            <div key={reg.id} className="p-4 flex flex-col gap-3">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div>
-                                                                        <div className="font-bold text-slate-900">{reg.parentName || reg.fullName}</div>
-                                                                        <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
-                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 flex items-center gap-1">
-                                                                                <User size={10} /> {reg.children?.length || reg.childCount || 0} Niños
-                                                                            </span>
-                                                                            {reg.ticketDistributor && (
-                                                                                <span className="text-blue-600 font-medium">@{reg.ticketDistributor}</span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    {reg.whatsappSent ? (
-                                                                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold border border-green-100">
-                                                                            <Check size={10} /> Enviado
+                                                        if (!cleanInput || isNaN(num)) return <p className="text-slate-500 text-sm">Ingrese un número válido.</p>;
+
+                                                        // 1. Check Registration Status
+                                                        const reg = normalizedRegistrations.find(r =>
+                                                            r.children.some(c => c.inviteNumber.includes(num.toString())) // Loose check
+                                                            || r.children.some(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num) // Strict check
+                                                        );
+
+                                                        const childFound = reg?.children.find(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num);
+
+                                                        // 2. Check Distributor Assignment
+                                                        const assignedDistributor = config.ticketDistributors?.find(d =>
+                                                            d.startRange && d.endRange && num >= d.startRange && num <= d.endRange
+                                                        );
+
+                                                        return (
+                                                            <div className="space-y-2 text-sm">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold w-32">Ticket:</span>
+                                                                    <span className="font-mono bg-slate-100 px-2 rounded">NI{num.toString().padStart(4, '0')}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold w-32">Estado Registro:</span>
+                                                                    {reg ? (
+                                                                        <span className="text-green-600 font-bold flex items-center gap-1">
+                                                                            <CheckCircle className="w-4 h-4" />
+                                                                            Registrado
                                                                         </span>
                                                                     ) : (
-                                                                        <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full text-[10px] font-bold border border-orange-100">
-                                                                            <Clock size={10} /> Pendiente
+                                                                        <span className="text-red-600 font-bold flex items-center gap-1">
+                                                                            <XCircle className="w-4 h-4" />
+                                                                            NO REGISTRADO (Disponible)
                                                                         </span>
                                                                     )}
                                                                 </div>
-
-                                                                <div className="flex items-center justify-between mt-1">
-                                                                    <div className="text-sm text-slate-600 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                                                                        {reg.whatsapp}
+                                                                {reg && (
+                                                                    <>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-bold w-32">Responsable:</span>
+                                                                            <span>{reg.parentName || reg.fullName}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-bold w-32">Beneficiario:</span>
+                                                                            <span>{childFound?.fullName || 'N/A'}</span>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold w-32">Asignado a:</span>
+                                                                    {assignedDistributor ? (
+                                                                        <span className="text-blue-600 font-bold">
+                                                                            {assignedDistributor.name} (Rango: {assignedDistributor.startRange}-{assignedDistributor.endRange})
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-orange-500 font-bold flex items-center gap-1">
+                                                                            <AlertTriangle className="w-4 h-4" />
+                                                                            SIN ASIGNAR (Fuera de Rangos)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {!reg && assignedDistributor && (
+                                                                    <div className="mt-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
+                                                                        Este ticket debería aparecer como "Pendiente" en la auditoría de <strong>{assignedDistributor.name}</strong>.
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => handleWhatsApp(reg)}
-                                                                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2 ${reg.whatsappSent ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-green-500 text-white shadow-green-200'}`}
-                                                                    >
-                                                                        <MessageSquare size={16} />
-                                                                        {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
-                                                                    </button>
+                                                                )}
+                                                                {!reg && !assignedDistributor && (
+                                                                    <div className="mt-2 text-xs text-slate-500 bg-orange-50 p-2 rounded">
+                                                                        Al no estar asignado a ningún rango, este ticket <strong>NO aparecerá</strong> en ninguna auditoría de faltantes.
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {distributorAudit.map((audit) => (
+                                                <div key={audit.name} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                                                    <div className="p-5 border-b border-slate-100">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <h4 className="font-bold text-slate-800 text-lg">{audit.name}</h4>
+                                                            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-mono">
+                                                                {audit.range}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="space-y-3 mt-4">
+                                                            {/* Registered Stats */}
+                                                            <div>
+                                                                <div className="flex justify-between text-xs text-slate-600 mb-1">
+                                                                    <span>Ingresados en Sistema</span>
+                                                                    <span className="font-bold">{audit.registeredCount} / {audit.totalAssigned}</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                                                    <div
+                                                                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                                                        style={{ width: `${audit.percentRegistered}%` }}
+                                                                    ></div>
                                                                 </div>
                                                             </div>
-                                                        ))}
+
+                                                            {/* Delivered Stats */}
+                                                            <div>
+                                                                <div className="flex justify-between text-xs text-slate-600 mb-1">
+                                                                    <span>Juguetes Entregados (Scaneados)</span>
+                                                                    <span className="font-bold text-green-600">{audit.deliveredCount}</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                                    <div
+                                                                        className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                                                        style={{ width: `${audit.percentDelivered}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Distributor Locations Chart */}
+                                                    {audit.allLocations && audit.allLocations.length > 0 && (
+                                                        <div className="px-5 pb-5 pt-2 border-t border-slate-50">
+                                                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                                                <MapPin size={12} /> Zonas de Influencia ({audit.allLocations.length})
+                                                            </h5>
+
+                                                            <div className="relative border border-slate-100 rounded-lg bg-slate-50/50">
+                                                                <div className="overflow-y-auto max-h-[250px] p-2 custon-scrollbar">
+                                                                    <div style={{ height: Math.max(100, audit.allLocations.length * 30) }}>
+                                                                        <ResponsiveContainer width="100%" height="100%">
+                                                                            <BarChart
+                                                                                data={audit.allLocations}
+                                                                                layout="vertical"
+                                                                                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                                                            >
+                                                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                                                <XAxis type="number" hide />
+                                                                                <YAxis
+                                                                                    dataKey="name"
+                                                                                    type="category"
+                                                                                    width={90}
+                                                                                    tick={{ fontSize: 10 }}
+                                                                                    interval={0}
+                                                                                />
+                                                                                <RechartsTooltip
+                                                                                    contentStyle={{ fontSize: '11px', padding: '5px' }}
+                                                                                    cursor={{ fill: '#e2e8f0' }}
+                                                                                    formatter={(value: any, name: any, props: any) => [value, 'Tickets']}
+                                                                                    labelFormatter={(idx) => {
+                                                                                        // We passed index or label? Recharts passes dataKey value usually if category
+                                                                                        // But safety fallback:
+                                                                                        const item = audit.allLocations[idx];
+                                                                                        return item ? item.fullName : '';
+                                                                                    }}
+                                                                                />
+                                                                                <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} />
+                                                                            </BarChart>
+                                                                        </ResponsiveContainer>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="p-0 flex-grow bg-slate-50/50 border-t border-slate-100">
+                                                        <details className="group">
+                                                            <summary className="p-4 cursor-pointer text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex justify-between items-center">
+                                                                <span>Tickets Pendientes de Registro ({audit.missingTickets.length})</span>
+                                                                <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                                                            </summary>
+                                                            <div className="px-4 pb-4">
+                                                                <p className="text-xs text-slate-500 mb-2 italic">
+                                                                    Estos tickets están asignados al distribuidor pero NO han sido ingresados al sistema por ningún padre.
+                                                                </p>
+                                                                {audit.missingTickets.length > 0 ? (
+                                                                    <div className="mt-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border border-slate-200">
+                                                                        {audit.missingTickets.map(num => (
+                                                                            <span key={num} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-mono border border-red-100">
+                                                                                {`NI${num.toString().padStart(4, '0')}`}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-center text-green-600 text-sm py-4 bg-green-50 rounded border border-green-100 mt-2">
+                                                                        ¡Completo! Todos los tickets fueron ingresados al sistema.
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </details>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Phone Audit Section */}
+                                        <div className="mt-8 pt-6 border-t border-slate-200">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <span className="bg-orange-100 text-orange-600 p-1.5 rounded-lg">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
+                                                </span>
+                                                Auditoría de Teléfonos (Formato Incorrecto)
+                                            </h3>
+
+                                            {phoneAudit.length === 0 ? (
+                                                <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-lg flex items-center gap-2">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>
+                                                    Todos los teléfonos tienen el formato correcto (8 dígitos).
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                    <div className="p-4 bg-orange-50 border-b border-orange-100 text-orange-800 text-sm">
+                                                        Se encontraron <strong>{phoneAudit.length}</strong> números que no cumplen con el formato de 8 dígitos (ej. 12345678).
+                                                    </div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm text-left">
+                                                            <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+                                                                <tr>
+                                                                    <th className="p-3">Responsable</th>
+                                                                    <th className="p-3">Teléfono (Incorrecto)</th>
+                                                                    <th className="p-3">Distribuidor Asignado</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {phoneAudit.map((item, idx) => (
+                                                                    <tr key={idx} className="hover:bg-slate-50">
+                                                                        <td className="p-3 font-medium text-slate-900">{item.name}</td>
+                                                                        <td className="p-3">
+                                                                            <span className="font-mono text-red-600 bg-red-50 rounded px-2 py-1 border border-red-100">
+                                                                                {item.phone}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="p-3 text-slate-600">{item.distributor}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                )
-                            }
+                                )}
 
-                            {
-                                activeTab === 'users' && currentUser?.role === 'admin' && (
-                                    <UsersManagementTab />
-                                )
-                            }
-                            {
-                                activeTab === 'system' && currentUser?.role === 'admin' && (
-                                    <SystemBackupTab />
-                                )
-                            }
+                                {
+                                    activeTab === 'wa_list' && (
+                                        <div className="space-y-6 animate-fade-in">
+                                            <div className="flex justify-between items-center">
+                                                <SectionHeader title="Envíos WhatsApp" description="Gestiona los mensajes de confirmación pendientes." />
+                                                <button
+                                                    onClick={async () => {
+                                                        const vcfContent = [
+                                                            "BEGIN:VCARD",
+                                                            "VERSION:3.0",
+                                                            "FN:Fundación Bukele",
+                                                            "ORG:Fundación Bukele",
+                                                            "TEL;TYPE=WORK,VOICE:79710214",
+                                                            "EMAIL:contacto@fundacionbukele.org",
+                                                            "END:VCARD"
+                                                        ].join("\n");
 
+                                                        const file = new File([vcfContent], "Contacto_Fundacion.vcf", { type: "text/vcard" });
+
+                                                        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                                                            try {
+                                                                await navigator.share({
+                                                                    files: [file],
+                                                                    title: 'Contacto Fundación Bukele',
+                                                                    text: 'Contacto para entregas de juguetes.'
+                                                                });
+                                                            } catch (error) {
+                                                                console.log("Error sharing", error);
+                                                            }
+                                                        } else {
+                                                            // Fallback to download
+                                                            const url = URL.createObjectURL(file);
+                                                            const a = document.createElement("a");
+                                                            a.href = url;
+                                                            a.download = "Contacto_Fundacion.vcf";
+                                                            a.click();
+                                                            URL.revokeObjectURL(url);
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors"
+                                                >
+                                                    <Share2 className="w-4 h-4" />
+                                                    Compartir Contacto
+                                                </button>
+                                            </div>
+
+                                            {/* Stats Cards */}
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                                                    <div className="text-3xl font-bold text-slate-800">{registrations.length}</div>
+                                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
+                                                </div>
+                                                <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col items-center">
+                                                    <div className="text-3xl font-bold text-green-600">{registrations.filter(r => r.whatsappSent).length}</div>
+                                                    <div className="text-xs font-bold text-green-600 uppercase tracking-wide">Enviados</div>
+                                                </div>
+                                                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col items-center">
+                                                    <div className="text-3xl font-bold text-orange-600">{registrations.filter(r => !r.whatsappSent).length}</div>
+                                                    <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">Pendientes</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                                <div className="p-4 border-b border-slate-100 flex gap-4 items-center">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Buscar por nombre o teléfono..."
+                                                        value={searchTerm}
+                                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
+                                                    />
+                                                    <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={showPendingOnly}
+                                                            onChange={(e) => setShowPendingOnly(e.target.checked)}
+                                                            className="w-4 h-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                        />
+                                                        <span className="text-sm font-medium text-slate-700">Solo Pendientes</span>
+                                                    </label>
+                                                </div>
+
+                                                {filteredRegistrations.length === 0 ? (
+                                                    <div className="p-8 text-center text-slate-500">No hay registros</div>
+                                                ) : (
+                                                    <div className="overflow-x-auto">
+                                                        {/* Desktop Table */}
+                                                        <table className="w-full text-sm text-left hidden md:table">
+                                                            <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+                                                                <tr>
+                                                                    <th className="px-6 py-3">Nombre</th>
+                                                                    <th className="px-6 py-3">WhatsApp</th>
+                                                                    <th className="px-6 py-3 text-center">Estado</th>
+                                                                    <th className="px-6 py-3">Niños</th>
+                                                                    <th className="px-6 py-3 text-right">Acción</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {filteredRegistrations.map(reg => (
+                                                                    <tr key={reg.id} className="hover:bg-slate-50">
+                                                                        <td className="px-6 py-4 font-medium text-slate-900">
+                                                                            {reg.parentName || reg.fullName}
+                                                                            <div className="text-xs text-slate-500">{reg.ticketDistributor || 'Sin Distribuidor'}</div>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-slate-600">{reg.whatsapp}</td>
+                                                                        <td className="px-6 py-4 text-center">
+                                                                            {reg.whatsappSent ? (
+                                                                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
+                                                                                    <MessageSquare size={12} className="fill-green-700" /> Enviado
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 px-2 py-1 rounded-full text-xs font-bold">
+                                                                                    <Loader2 size={12} /> Pendiente
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="px-6 py-4">
+                                                                            <span className="bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-600">
+                                                                                {reg.children?.length || reg.childCount || 0}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <div className="flex justify-end gap-2">
+                                                                                <button
+                                                                                    onClick={() => handleWhatsApp(reg)}
+                                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1 ${reg.whatsappSent ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+                                                                                >
+                                                                                    <MessageSquare size={14} /> {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+
+                                                        {/* Mobile Cards */}
+                                                        <div className="md:hidden divide-y divide-slate-100">
+                                                            {filteredRegistrations.map(reg => (
+                                                                <div key={reg.id} className="p-4 flex flex-col gap-3">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <div className="font-bold text-slate-900">{reg.parentName || reg.fullName}</div>
+                                                                            <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
+                                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 flex items-center gap-1">
+                                                                                    <User size={10} /> {reg.children?.length || reg.childCount || 0} Niños
+                                                                                </span>
+                                                                                {reg.ticketDistributor && (
+                                                                                    <span className="text-blue-600 font-medium">@{reg.ticketDistributor}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        {reg.whatsappSent ? (
+                                                                            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold border border-green-100">
+                                                                                <Check size={10} /> Enviado
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full text-[10px] font-bold border border-orange-100">
+                                                                                <Clock size={10} /> Pendiente
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex items-center justify-between mt-1">
+                                                                        <div className="text-sm text-slate-600 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                                                            {reg.whatsapp}
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleWhatsApp(reg)}
+                                                                            className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2 ${reg.whatsappSent ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-green-500 text-white shadow-green-200'}`}
+                                                                        >
+                                                                            <MessageSquare size={16} />
+                                                                            {reg.whatsappSent ? 'Reenviar' : 'Enviar QR'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+                                {
+                                    activeTab === 'users' && currentUser?.role === 'admin' && (
+                                        <UsersManagementTab />
+                                    )
+                                }
+                                {
+                                    activeTab === 'system' && currentUser?.role === 'admin' && (
+                                        <SystemBackupTab />
+                                    )
+                                }
+
+                            </div>
                         </div>
                         {/* QR Code Modal */}
                         {

@@ -4,6 +4,7 @@ import Hero from './components/Hero';
 import InfoSection from './components/InfoSection';
 import RegistrationForm from './components/RegistrationForm';
 import AdminPanel from './components/AdminPanel';
+import LandingV2 from './components/LandingV2';
 
 import QRDisplay from './components/QRDisplay';
 import { waitForAuth } from './services/firebaseConfig';
@@ -20,6 +21,11 @@ const App: React.FC = () => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('view') === 'qr') {
     return <QRDisplay />;
+  }
+
+  // Check for New Landing Version
+  if (params.get('v') === '2') {
+    return <LandingV2 />;
   }
 
   if (!authReady) {

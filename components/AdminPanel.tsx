@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, XCircle, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck } from 'lucide-react';
+import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, XCircle, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck, MapPin } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -863,7 +863,50 @@ const AdminPanel: React.FC = () => {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        return { genderData, municipalData, deliveryProgressData, timelineData, ageData, distributorData, redFlags };
+        // 8. Top Colonies (Address Details)
+        // 8. Top Colonies (Address Details)
+        // Structure: { "COLONIA X": { total: 10, distributors: { "Dist A": 5, "Dist B": 5 } } }
+        const colonyDetails: Record<string, { total: number, distributors: Record<string, number> }> = {};
+
+        normalizedRegistrations.forEach(r => {
+            const rawColony = (r.addressDetails || 'Sin Dato').trim();
+            if (rawColony.length > 2) {
+                const key = rawColony.toUpperCase();
+
+                if (!colonyDetails[key]) {
+                    colonyDetails[key] = { total: 0, distributors: {} };
+                }
+
+                // Determine distributor for this registration (mostly parent level)
+                // Use first child to determine representative distributor
+                const representativeChild = r.children[0];
+                let distName = 'Desconocido';
+                if (representativeChild) {
+                    distName = getDistributorForTicket(representativeChild.inviteNumber, config.ticketDistributors || []);
+                }
+
+                // Fallback to manual assignment if "Others"
+                if ((distName === 'Otros / Sin Asignar' || distName === 'Desconocido') && r.ticketDistributor) {
+                    distName = r.ticketDistributor;
+                }
+
+                // Add to total
+                colonyDetails[key].total++;
+                // Add to distributor specific count
+                colonyDetails[key].distributors[distName] = (colonyDetails[key].distributors[distName] || 0) + 1;
+            }
+        });
+
+        const colonyData = Object.entries(colonyDetails)
+            .map(([name, data]) => ({
+                name,
+                value: data.total,
+                displayName: name.length > 20 ? name.substring(0, 18) + '...' : name,
+                ...data.distributors // Spread distributors as keys: { "Juan": 5, "Maria": 2 }
+            }))
+            .sort((a, b) => b.value - a.value);
+
+        return { genderData, municipalData, deliveryProgressData, timelineData, ageData, distributorData, redFlags, colonyData };
     }, [normalizedRegistrations, config.ticketDistributors]);
 
     // Progress
@@ -1061,7 +1104,7 @@ const AdminPanel: React.FC = () => {
         if (!config.ticketDistributors) return [];
 
         // 1. Collect ALL registered ticket numbers and their status
-        const registeredTickets = new Map<number, { status: string }>();
+        const registeredTickets = new Map<number, { status: string, location?: string }>();
         normalizedRegistrations.forEach(r => {
             r.children.forEach(c => {
                 const num = parseInt(c.inviteNumber.replace(/\D/g, ''));
@@ -1070,7 +1113,10 @@ const AdminPanel: React.FC = () => {
                     // Let's prioritize delivered if duplicates exist.
                     const current = registeredTickets.get(num);
                     if (!current || c.status === 'delivered') {
-                        registeredTickets.set(num, { status: c.status || 'pending' });
+                        registeredTickets.set(num, {
+                            status: c.status || 'pending',
+                            location: r.addressDetails // Capture location from parent registration
+                        });
                     }
                 }
             });
@@ -1086,6 +1132,9 @@ const AdminPanel: React.FC = () => {
             let registeredCount = 0;
             let deliveredCount = 0;
 
+            // Location tracking for this distributor
+            const locationCounts: Record<string, number> = {};
+
             if (totalAssigned > 0) {
                 for (let i = start; i <= end; i++) {
                     const ticket = registeredTickets.get(i);
@@ -1094,11 +1143,29 @@ const AdminPanel: React.FC = () => {
                         if (ticket.status === 'delivered') {
                             deliveredCount++;
                         }
+
+                        // Count Location
+                        if (ticket.location && ticket.location.trim().length > 2) {
+                            const loc = ticket.location.trim().toUpperCase();
+                            // Use original case from first occurrence or just capitalized? 
+                            // Let's store UPPER key but maybe we want display name.
+                            // For simplicity, let's just use the raw string but grouped by UPPER
+                            locationCounts[loc] = (locationCounts[loc] || 0) + 1;
+                        }
                     } else {
                         missingTickets.push(i);
                     }
                 }
             }
+
+            // Convert location counts to array for Chart
+            const allLocations = Object.entries(locationCounts)
+                .map(([name, value]) => ({
+                    name: name.length > 20 ? name.substring(0, 18) + '...' : name, // Truncate for display
+                    fullName: name,
+                    value
+                }))
+                .sort((a, b) => b.value - a.value);
 
             return {
                 name: dist.name,
@@ -1108,7 +1175,8 @@ const AdminPanel: React.FC = () => {
                 deliveredCount,
                 percentRegistered: totalAssigned > 0 ? Math.round((registeredCount / totalAssigned) * 100) : 0,
                 percentDelivered: totalAssigned > 0 ? Math.round((deliveredCount / totalAssigned) * 100) : 0,
-                missingTickets
+                missingTickets,
+                allLocations
             };
         }).sort((a, b) => b.missingTickets.length - a.missingTickets.length);
     }, [config.ticketDistributors, normalizedRegistrations]);
@@ -2782,6 +2850,83 @@ const AdminPanel: React.FC = () => {
                                                     </div>
                                                 </div>
 
+                                                {/* Top Colonies (Bar - Vertical) */}
+                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
+                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                        <MapPin className="w-4 h-4 text-purple-500" /> Top Lugares
+                                                    </h4>
+                                                    <div className="flex-grow">
+                                                        <ResponsiveContainer width="100%" height={250}>
+                                                            <BarChart data={(stats?.colonyData || []).slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                                <XAxis type="number" hide />
+                                                                <YAxis
+                                                                    dataKey="displayName"
+                                                                    type="category"
+                                                                    width={90}
+                                                                    tick={{ fontSize: 10 }}
+                                                                    interval={0}
+                                                                />
+                                                                <RechartsTooltip
+                                                                    contentStyle={{ fontSize: '12px' }}
+                                                                    cursor={{ fill: 'transparent' }}
+                                                                />
+                                                                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+
+                                                {/* Full Colonies List (Scrollable Chart) */}
+                                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col col-span-1 md:col-span-2 lg:col-span-4">
+                                                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                                                        <MapPin className="w-4 h-4 text-indigo-500" /> Distribución Completa de Lugares ({stats?.colonyData?.length || 0})
+                                                    </h4>
+                                                    <div className="flex-grow overflow-y-auto max-h-[500px] border border-slate-100 rounded-lg p-2">
+                                                        {/* Force height based on number of items to make it scrollable properly */}
+                                                        <div style={{ height: Math.max(400, (stats?.colonyData?.length || 0) * 30) }}>
+                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                <BarChart data={stats?.colonyData || []} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                                    <XAxis type="number" orientation="top" />
+                                                                    <YAxis
+                                                                        dataKey="name" // Use full name here
+                                                                        type="category"
+                                                                        width={150}
+                                                                        tick={{ fontSize: 10 }}
+                                                                        interval={0}
+                                                                    />
+                                                                    <RechartsTooltip
+                                                                        contentStyle={{ fontSize: '12px' }}
+                                                                        cursor={{ fill: '#f1f5f9' }}
+                                                                    />
+                                                                    <Legend iconType="circle" />
+                                                                    {/* Dynamic Stacked Bars for Distributors */}
+                                                                    {/* We need a color for each distributor. We can cycle through a palette. */}
+                                                                    {(config.ticketDistributors || []).concat([{ name: 'Desconocido', phone: '' }, { name: 'Otros / Sin Asignar', phone: '' }]).map((dist, idx) => {
+                                                                        const colors = [
+                                                                            '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981',
+                                                                            '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef',
+                                                                            '#f43f5e', '#64748b'
+                                                                        ];
+                                                                        const color = colors[idx % colors.length];
+                                                                        return (
+                                                                            <Bar
+                                                                                key={dist.name}
+                                                                                dataKey={dist.name}
+                                                                                stackId="a"
+                                                                                fill={color}
+                                                                                radius={[0, 0, 0, 0]}
+                                                                                barSize={15}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </BarChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 {/* Timeline (Area) */}
                                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-3">
                                                     <h4 className="font-semibold text-slate-800 mb-4">Ritmo de Inscripción</h4>
@@ -3360,7 +3505,52 @@ const AdminPanel: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="p-0 flex-grow bg-slate-50/50">
+                                                {/* Distributor Locations Chart */}
+                                                {audit.allLocations && audit.allLocations.length > 0 && (
+                                                    <div className="px-5 pb-5 pt-2 border-t border-slate-50">
+                                                        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                                            <MapPin size={12} /> Zonas de Influencia ({audit.allLocations.length})
+                                                        </h5>
+
+                                                        <div className="relative border border-slate-100 rounded-lg bg-slate-50/50">
+                                                            <div className="overflow-y-auto max-h-[250px] p-2 custon-scrollbar">
+                                                                <div style={{ height: Math.max(100, audit.allLocations.length * 30) }}>
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <BarChart
+                                                                            data={audit.allLocations}
+                                                                            layout="vertical"
+                                                                            margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                                                        >
+                                                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                                            <XAxis type="number" hide />
+                                                                            <YAxis
+                                                                                dataKey="name"
+                                                                                type="category"
+                                                                                width={90}
+                                                                                tick={{ fontSize: 10 }}
+                                                                                interval={0}
+                                                                            />
+                                                                            <RechartsTooltip
+                                                                                contentStyle={{ fontSize: '11px', padding: '5px' }}
+                                                                                cursor={{ fill: '#e2e8f0' }}
+                                                                                formatter={(value: any, name: any, props: any) => [value, 'Tickets']}
+                                                                                labelFormatter={(idx) => {
+                                                                                    // We passed index or label? Recharts passes dataKey value usually if category
+                                                                                    // But safety fallback:
+                                                                                    const item = audit.allLocations[idx];
+                                                                                    return item ? item.fullName : '';
+                                                                                }}
+                                                                            />
+                                                                            <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={12} />
+                                                                        </BarChart>
+                                                                    </ResponsiveContainer>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="p-0 flex-grow bg-slate-50/50 border-t border-slate-100">
                                                     <details className="group">
                                                         <summary className="p-4 cursor-pointer text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors flex justify-between items-center">
                                                             <span>Tickets Pendientes de Registro ({audit.missingTickets.length})</span>

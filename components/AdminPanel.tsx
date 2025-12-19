@@ -25,7 +25,8 @@ import {
     restoreDatabaseDump,
     clearAllRegistrations,
     saveAppConfig,
-    authenticateUser
+    authenticateUser,
+    cleanupOrphanedInvites
 } from '../services/storageService';
 
 export interface TicketDistributor {
@@ -2545,7 +2546,7 @@ const AdminPanel: React.FC = () => {
                                                     </div>
                                                     <div className="text-right">
                                                         <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                                ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                            ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                                                             }`}>
                                                             {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%
                                                         </span>
@@ -2554,7 +2555,7 @@ const AdminPanel: React.FC = () => {
                                                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                                                     <div
                                                         className={`h-full rounded-full transition-all duration-1000 ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                                ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
+                                                            ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
                                                             }`}
                                                         style={{ width: `${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%` }}
                                                     ></div>
@@ -3087,6 +3088,25 @@ const AdminPanel: React.FC = () => {
                                                     <Download className="w-4 h-4" /> Exportar Excel
                                                 </button>
                                             </div>
+
+                                            <div className="w-full max-w-md border-t border-slate-100 pt-6">
+                                                <h4 className="text-sm font-bold text-slate-700 mb-3 text-left">Mantenimiento</h4>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm("Esto buscará y liberará invitaciones marcadas como 'ocupadas' pero cuyo registro ya no existe. ¿Deseas continuar?")) {
+                                                            setIsLoading(true);
+                                                            const res = await cleanupOrphanedInvites();
+                                                            setIsLoading(false);
+                                                            alert(res.message);
+                                                        }
+                                                    }}
+                                                    className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 py-2 px-4 rounded-lg transition-colors font-medium text-sm flex items-center justify-center gap-2"
+                                                >
+                                                    <ShieldCheck className="w-4 h-4" />
+                                                    Liberar Invitaciones Huérfanas (Reparar DB)
+                                                </button>
+                                            </div>
+
                                         </div>
 
                                         <div className="bg-red-50 p-6 rounded-xl border border-red-200 w-full animate-fade-in">

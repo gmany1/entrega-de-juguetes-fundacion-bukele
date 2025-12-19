@@ -172,7 +172,31 @@ export const updateRegistration = async (id: string, data: Partial<Registration>
 
 export const deleteRegistration = async (id: string): Promise<StorageResult> => {
   try {
-    await deleteDoc(doc(db, COLLECTION_NAME, id));
+    // 1. Get the registration to find which invites to release
+    const regRef = doc(db, COLLECTION_NAME, id);
+    const regSnap = await getDoc(regRef);
+
+    if (regSnap.exists()) {
+      const data = regSnap.data();
+
+      // Collect invites
+      const invitesToDelete = [];
+      if (data.children && Array.isArray(data.children)) {
+        data.children.forEach((c: any) => {
+          if (c.inviteNumber) invitesToDelete.push(c.inviteNumber);
+        });
+      }
+      // Legacy check
+      if (data.inviteNumber) invitesToDelete.push(data.inviteNumber);
+
+      // Delete from taken_invites
+      for (const invite of invitesToDelete) {
+        if (invite) await deleteDoc(doc(db, 'taken_invites', invite));
+      }
+    }
+
+    // 2. Delete the registration
+    await deleteDoc(regRef);
     return { success: true };
   } catch (error) {
     console.error("Error deleting registration", error);
@@ -201,10 +225,89 @@ export const clearAllRegistrations = async (): Promise<StorageResult> => {
       await batch.commit();
     }
 
+    // Also clear taken_invites
+    const qInvites = query(collection(db, 'taken_invites'));
+    const invitesSnap = await getDocs(qInvites);
+    const inviteChunks = [];
+    for (let i = 0; i < invitesSnap.docs.length; i += batchSize) {
+      inviteChunks.push(invitesSnap.docs.slice(i, i + batchSize));
+    }
+    for (const chunk of inviteChunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Error clearing database", error);
     return { success: false, message: "Error al reiniciar la base de datos." };
+  }
+};
+
+export const cleanupOrphanedInvites = async (): Promise<StorageResult> => {
+  try {
+    console.log("Starting orphan cleanup...");
+    // 1. Get all valid Registration IDs
+    const regQuery = query(collection(db, COLLECTION_NAME));
+    const regSnap = await getDocs(regQuery);
+    const validRegIds = new Set(regSnap.docs.map(d => d.id));
+
+    // 2. Get all Taken Invites
+    const invitesQuery = query(collection(db, 'taken_invites'));
+    const invitesSnap = await getDocs(invitesQuery);
+
+    let deletedCount = 0;
+    const batch = writeBatch(db);
+    let opCount = 0;
+
+    for (const inviteDoc of invitesSnap.docs) {
+      const data = inviteDoc.data();
+      const parentId = data.parentRegId;
+
+      // If it has a parentId but that parent doesn't exist in registrations -> Orphan
+      if (parentId && !validRegIds.has(parentId)) {
+        batch.delete(inviteDoc.ref);
+        deletedCount++;
+        opCount++;
+      } else if (!parentId) {
+        // Warning: Invites without parentId? 
+        // We can't safely delete unless we cross-check every registration's children.
+        // For now, let's only delete if we are sure (orphaned parentId).
+        // Or if we want to be aggressive: check if this Invite Number exists in ANY child of ANY valid registration.
+        // Let's implement the aggressive safety check for empty parentId
+        let isUsed = false;
+        const inviteNum = inviteDoc.id;
+        for (const regDoc of regSnap.docs) {
+          const regData = regDoc.data();
+          if (regData.children && regData.children.some((c: any) => c.inviteNumber === inviteNum)) {
+            isUsed = true;
+            break;
+          }
+          if (regData.inviteNumber === inviteNum) {
+            isUsed = true;
+            break;
+          }
+        }
+
+        if (!isUsed) {
+          batch.delete(inviteDoc.ref);
+          deletedCount++;
+          opCount++;
+        }
+      }
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+
+    console.log(`Cleanup complete. Deleted ${deletedCount} orphans.`);
+    return { success: true, message: `Se limpiaron ${deletedCount} invitaciones huérfanas.` };
+
+  } catch (error: any) {
+    console.error("Error cleaning orphans", error);
+    return { success: false, message: error.message || "Error al limpiar huérfanos." };
   }
 };
 

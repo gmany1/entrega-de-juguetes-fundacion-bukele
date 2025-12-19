@@ -1095,8 +1095,24 @@ const AdminPanel: React.FC = () => {
                 percent: totalAssigned > 0 ? Math.round((inRangeCount / totalAssigned) * 100) : 0,
                 missingTickets
             };
-        });
+        }).sort((a, b) => b.missingTickets.length - a.missingTickets.length);
     }, [config.ticketDistributors, normalizedRegistrations]);
+
+    const phoneAudit = useMemo(() => {
+        const invalidPhones: { name: string, phone: string, distributor: string }[] = [];
+        normalizedRegistrations.forEach(reg => {
+            const cleanPhone = reg.whatsapp ? reg.whatsapp.replace(/\D/g, '') : '';
+            // Check if phone is NOT exactly 8 digits
+            if (cleanPhone.length !== 8) {
+                invalidPhones.push({
+                    name: reg.parentName || reg.fullName || 'Sin Nombre',
+                    phone: reg.whatsapp || 'N/A',
+                    distributor: reg.ticketDistributor || 'Sin Asignar'
+                });
+            }
+        });
+        return invalidPhones;
+    }, [normalizedRegistrations]);
 
     // PDF Control List for Distributor
     const handleDownloadDistributorControl = (distributor: TicketDistributor) => {
@@ -3186,7 +3202,7 @@ const AdminPanel: React.FC = () => {
                                                                 <div className="mt-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border border-slate-200">
                                                                     {audit.missingTickets.map(num => (
                                                                         <span key={num} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-mono border border-red-100">
-                                                                            {num}
+                                                                            {`NI${num.toString().padStart(4, '0')}`}
                                                                         </span>
                                                                     ))}
                                                                 </div>
@@ -3200,6 +3216,53 @@ const AdminPanel: React.FC = () => {
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+
+                                    {/* Phone Audit Section */}
+                                    <div className="mt-8 pt-6 border-t border-slate-200">
+                                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <span className="bg-orange-100 text-orange-600 p-1.5 rounded-lg">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
+                                            </span>
+                                            Auditoría de Teléfonos (Formato Incorrecto)
+                                        </h3>
+
+                                        {phoneAudit.length === 0 ? (
+                                            <div className="bg-green-50 border border-green-100 text-green-700 p-4 rounded-lg flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>
+                                                Todos los teléfonos tienen el formato correcto (8 dígitos).
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                <div className="p-4 bg-orange-50 border-b border-orange-100 text-orange-800 text-sm">
+                                                    Se encontraron <strong>{phoneAudit.length}</strong> números que no cumplen con el formato de 8 dígitos (ej. 12345678).
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+                                                            <tr>
+                                                                <th className="p-3">Responsable</th>
+                                                                <th className="p-3">Teléfono (Incorrecto)</th>
+                                                                <th className="p-3">Distribuidor Asignado</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {phoneAudit.map((item, idx) => (
+                                                                <tr key={idx} className="hover:bg-slate-50">
+                                                                    <td className="p-3 font-medium text-slate-900">{item.name}</td>
+                                                                    <td className="p-3">
+                                                                        <span className="font-mono text-red-600 bg-red-50 rounded px-2 py-1 border border-red-100">
+                                                                            {item.phone}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-3 text-slate-600">{item.distributor}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

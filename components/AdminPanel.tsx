@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck } from 'lucide-react';
+import { Sparkles, Download, Settings, Type, Image as ImageIcon, MessageSquare, Database, X, XCircle, RotateCcw, Lock, User, Key, Upload, Loader2, ArrowRight, BarChart3, Contact, Trash2, Pencil, AlertTriangle, ChevronDown, ChevronRight, ScanLine, Send, Share2, Check, Clock, Edit2, Info, ShieldCheck, Search, CheckCircle, FolderLock, ClipboardCheck } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -3203,6 +3203,102 @@ const AdminPanel: React.FC = () => {
                             {activeTab === 'audit' && (
                                 <div className="space-y-6 animate-fade-in">
                                     <SectionHeader title="Auditoría de Tickets" description="Control de faltantes por rango y distribuidor." />
+
+                                    <div className="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <Search className="w-5 h-5 text-slate-500" />
+                                            Consultar Estado de Ticket
+                                        </h3>
+                                        <div className="flex gap-4 items-end">
+                                            <InputGroup
+                                                label="Número de Ticket (ej. 618)"
+                                                value={searchTerm}
+                                                onChange={setSearchTerm}
+                                            />
+                                        </div>
+
+                                        {searchTerm && (
+                                            <div className="mt-4 p-4 bg-white rounded-lg border border-slate-200">
+                                                {(() => {
+                                                    const cleanInput = searchTerm.replace(/\D/g, '');
+                                                    const num = parseInt(cleanInput);
+
+                                                    if (!cleanInput || isNaN(num)) return <p className="text-slate-500 text-sm">Ingrese un número válido.</p>;
+
+                                                    // 1. Check Registration Status
+                                                    const reg = normalizedRegistrations.find(r =>
+                                                        r.children.some(c => c.inviteNumber.includes(num.toString())) // Loose check
+                                                        || r.children.some(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num) // Strict check
+                                                    );
+
+                                                    const childFound = reg?.children.find(c => parseInt(c.inviteNumber.replace(/\D/g, '') || '0') === num);
+
+                                                    // 2. Check Distributor Assignment
+                                                    const assignedDistributor = config.ticketDistributors?.find(d =>
+                                                        d.startRange && d.endRange && num >= d.startRange && num <= d.endRange
+                                                    );
+
+                                                    return (
+                                                        <div className="space-y-2 text-sm">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold w-32">Ticket:</span>
+                                                                <span className="font-mono bg-slate-100 px-2 rounded">NI{num.toString().padStart(4, '0')}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold w-32">Estado Registro:</span>
+                                                                {reg ? (
+                                                                    <span className="text-green-600 font-bold flex items-center gap-1">
+                                                                        <CheckCircle className="w-4 h-4" />
+                                                                        Registrado
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-red-600 font-bold flex items-center gap-1">
+                                                                        <XCircle className="w-4 h-4" />
+                                                                        NO REGISTRADO (Disponible)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {reg && (
+                                                                <>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-bold w-32">Responsable:</span>
+                                                                        <span>{reg.parentName || reg.fullName}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-bold w-32">Beneficiario:</span>
+                                                                        <span>{childFound?.fullName || 'N/A'}</span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold w-32">Asignado a:</span>
+                                                                {assignedDistributor ? (
+                                                                    <span className="text-blue-600 font-bold">
+                                                                        {assignedDistributor.name} (Rango: {assignedDistributor.startRange}-{assignedDistributor.endRange})
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-orange-500 font-bold flex items-center gap-1">
+                                                                        <AlertTriangle className="w-4 h-4" />
+                                                                        SIN ASIGNAR (Fuera de Rangos)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {!reg && assignedDistributor && (
+                                                                <div className="mt-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
+                                                                    Este ticket debería aparecer como "Pendiente" en la auditoría de <strong>{assignedDistributor.name}</strong>.
+                                                                </div>
+                                                            )}
+                                                            {!reg && !assignedDistributor && (
+                                                                <div className="mt-2 text-xs text-slate-500 bg-orange-50 p-2 rounded">
+                                                                    Al no estar asignado a ningún rango, este ticket <strong>NO aparecerá</strong> en ninguna auditoría de faltantes.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {distributorAudit.map((audit) => (

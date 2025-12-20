@@ -2,9 +2,23 @@
 import { useState, useEffect } from 'react';
 import { Registration, Child } from '../types';
 import { getRegistrations, updateChildStatus } from '../services/storageService';
+import { openDB, DBSchema } from 'idb';
 
-const CACHE_KEY = 'offline_whitelist';
-const QUEUE_KEY = 'offline_queue';
+const DB_NAME = 'juguetes-offline-db';
+const STORE_WHITELIST = 'whitelist';
+const STORE_QUEUE = 'queue';
+
+interface OfflineDB extends DBSchema {
+    [STORE_WHITELIST]: {
+        key: string;
+        value: Registration;
+    };
+    [STORE_QUEUE]: {
+        key: string;
+        value: OfflineQueueItem;
+        indexes: { 'timestamp': string };
+    };
+}
 
 export interface OfflineQueueItem {
     parentId: string;
@@ -12,6 +26,7 @@ export interface OfflineQueueItem {
     status: 'delivered';
     timestamp: string;
     synced: boolean;
+    id?: number; // Auto-increment ID from IDB
 }
 
 export const useOfflineSync = () => {
@@ -20,24 +35,44 @@ export const useOfflineSync = () => {
     const [queue, setQueue] = useState<OfflineQueueItem[]>([]);
     const [lastSync, setLastSync] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [dbReady, setDbReady] = useState(false);
 
-    // Initial Load
+    // Initialize DB
     useEffect(() => {
-        const stored = localStorage.getItem(CACHE_KEY);
-        if (stored) {
-            setWhitelist(JSON.parse(stored));
-        }
+        const initDB = async () => {
+            try {
+                const db = await openDB<OfflineDB>(DB_NAME, 1, {
+                    upgrade(db) {
+                        if (!db.objectStoreNames.contains(STORE_WHITELIST)) {
+                            db.createObjectStore(STORE_WHITELIST, { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains(STORE_QUEUE)) {
+                            const qStore = db.createObjectStore(STORE_QUEUE, { keyPath: 'id', autoIncrement: true });
+                            qStore.createIndex('timestamp', 'timestamp');
+                        }
+                    },
+                });
+                setDbReady(true);
 
-        const storedQueue = localStorage.getItem(QUEUE_KEY);
-        if (storedQueue) {
-            setQueue(JSON.parse(storedQueue));
-        }
+                // Load initial data
+                const storedWhitelist = await db.getAll(STORE_WHITELIST);
+                setWhitelist(storedWhitelist);
+
+                const storedQueue = await db.getAll(STORE_QUEUE);
+                setQueue(storedQueue);
+
+            } catch (e) {
+                console.error("Failed to init IndexedDB", e);
+            }
+        };
 
         const handleOnline = () => setIsOffline(false);
         const handleOffline = () => setIsOffline(true);
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
+
+        initDB();
 
         return () => {
             window.removeEventListener('online', handleOnline);
@@ -46,46 +81,69 @@ export const useOfflineSync = () => {
     }, []);
 
     const downloadWhitelist = async () => {
+        if (!dbReady) return;
         setIsSyncing(true);
         try {
+            console.log("Downloading whitelist...");
             const regs = await getRegistrations();
-            localStorage.setItem(CACHE_KEY, JSON.stringify(regs));
+            console.log(`Downloaded ${regs.length} records. Saving to IndexedDB...`);
+
+            const db = await openDB<OfflineDB>(DB_NAME, 1);
+            const tx = db.transaction(STORE_WHITELIST, 'readwrite');
+            const store = tx.objectStore(STORE_WHITELIST);
+
+            // Clear old data first to match server state (in case deletions happened)
+            await store.clear();
+
+            for (const reg of regs) {
+                await store.put(reg);
+            }
+
+            await tx.done;
+
             setWhitelist(regs);
             setLastSync(new Date().toISOString());
+            console.log("Whitelist saved successfully.");
         } catch (e) {
             console.error("Failed to download whitelist", e);
-            alert("No se pudo descargar la lista. Revisa tu conexión.");
+            alert("No se pudo descargar la lista. Revisa tu conexión. Detalle: " + e);
         } finally {
             setIsSyncing(false);
         }
     };
 
     const processQueue = async () => {
-        if (isOffline || queue.length === 0) return;
+        if (isOffline || queue.length === 0 || !dbReady) return;
 
         setIsSyncing(true);
-        const newQueue = [...queue];
+        const db = await openDB<OfflineDB>(DB_NAME, 1);
+        const currentQueue = await db.getAll(STORE_QUEUE);
+
         let successes = 0;
 
-        for (let i = 0; i < newQueue.length; i++) {
-            const item = newQueue[i];
+        for (const item of currentQueue) {
             if (item.synced) continue;
 
             try {
+                console.log(`Syncing item: ${item.parentId} - ${item.childId}`);
                 const res = await updateChildStatus(item.parentId, item.childId, item.status, item.timestamp);
                 if (res.success) {
-                    item.synced = true;
-                    successes++;
+                    // Update item in DB as synced or delete it? 
+                    // Let's delete it if successful to keep queue clean, or mark synced.
+                    // For now, delete to clear queue.
+                    if (item.id) {
+                        await db.delete(STORE_QUEUE, item.id as any); // Type cast due to idb quirks with autoIncrement keys
+                        successes++;
+                    }
                 }
             } catch (e) {
                 console.error("Sync failed for item", item, e);
             }
         }
 
-        // Remove synced items
-        const remaining = newQueue.filter(i => !i.synced);
+        // Refresh Queue State
+        const remaining = await db.getAll(STORE_QUEUE);
         setQueue(remaining);
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
         setIsSyncing(false);
 
         if (successes > 0) {
@@ -95,7 +153,9 @@ export const useOfflineSync = () => {
         }
     };
 
-    const addToQueue = (parentId: string, childId: string) => {
+    const addToQueue = async (parentId: string, childId: string) => {
+        if (!dbReady) return;
+
         const newItem: OfflineQueueItem = {
             parentId,
             childId,
@@ -104,11 +164,15 @@ export const useOfflineSync = () => {
             synced: false
         };
 
-        const newQueue = [...queue, newItem];
-        setQueue(newQueue);
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(newQueue));
+        // 1. Save to IDB Queue
+        const db = await openDB<OfflineDB>(DB_NAME, 1);
+        await db.add(STORE_QUEUE, newItem);
 
-        // Optimistic update of local whitelist for immediate feedback loop
+        // Update Local State for UI
+        const updatedQueue = await db.getAll(STORE_QUEUE);
+        setQueue(updatedQueue);
+
+        // 2. Optimistic update of local whitelist for immediate feedback loop
         const newWhitelist = [...whitelist];
         const parentIdx = newWhitelist.findIndex(r => r.id === parentId);
         if (parentIdx !== -1) {
@@ -119,13 +183,12 @@ export const useOfflineSync = () => {
                 if (childIdx !== -1) {
                     parent.children[childIdx] = { ...parent.children[childIdx], status: 'delivered', deliveredAt: newItem.timestamp };
                 }
-            } else {
-                // Legacy fallback logic
-                // For now, whitelist assumes unified structure or we just accept the queue add
             }
             newWhitelist[parentIdx] = parent;
             setWhitelist(newWhitelist);
-            localStorage.setItem(CACHE_KEY, JSON.stringify(newWhitelist));
+
+            // Also update the whitelist in IDB so if they reload page while offline, it shows delivered
+            await db.put(STORE_WHITELIST, parent);
         }
     };
 

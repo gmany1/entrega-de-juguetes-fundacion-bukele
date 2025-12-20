@@ -2221,24 +2221,32 @@ const AdminPanel: React.FC = () => {
                         {/* Mobile Tabs (Horizontal) */}
                         {/* Mobile Tabs (Horizontal) - OPTIMIZED */}
                         <div className="md:hidden w-full border-b border-slate-200 bg-white flex-shrink-0 grid grid-cols-4">
-                            <TabButtonMobile
-                                active={!mobileMenuOpen && activeTab === 'stats'}
-                                onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }}
-                                icon={<BarChart3 size={20} />}
-                                label="Tablero"
-                            />
+                            {currentUser?.role !== 'verifier' && (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && activeTab === 'stats'}
+                                    onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }}
+                                    icon={<BarChart3 size={20} />}
+                                    label="Tablero"
+                                />
+                            )}
+
                             <TabButtonMobile
                                 active={!mobileMenuOpen && activeTab === 'scanner'}
                                 onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
                                 icon={<ScanLine size={20} />}
                                 label="Escanear"
                             />
-                            <TabButtonMobile
-                                active={!mobileMenuOpen && (activeTab === 'data' || activeTab === 'wa_list')}
-                                onClick={() => { setActiveTab('data'); setMobileMenuOpen(false); }}
-                                icon={<Database size={20} />}
-                                label="Registros"
-                            />
+
+                            {currentUser?.role !== 'verifier' && (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && (activeTab === 'data' || activeTab === 'wa_list')}
+                                    onClick={() => { setActiveTab('data'); setMobileMenuOpen(false); }}
+                                    icon={<Database size={20} />}
+                                    label="Registros"
+                                />
+                            )}
+
+                            {/* Specialized Menu Button */}
                             <TabButtonMobile
                                 active={mobileMenuOpen}
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -2259,73 +2267,79 @@ const AdminPanel: React.FC = () => {
                                         </div>
 
                                         {/* Operaciones */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operaciones</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button onClick={() => { setActiveTab('wa_list'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-green-50 rounded-full text-green-600">
-                                                        <Send size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Envíos WA</span>
-                                                </button>
-                                                <button onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-blue-50 rounded-full text-blue-600">
-                                                        <ClipboardCheck size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Auditoría</span>
-                                                </button>
+                                        {currentUser?.role !== 'verifier' && (
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operaciones</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => { setActiveTab('wa_list'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-green-50 rounded-full text-green-600">
+                                                            <Send size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Envíos WA</span>
+                                                    </button>
+                                                    <button onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+                                                            <ClipboardCheck size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Auditoría</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         {/* Sistema */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sistema</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-purple-50 rounded-full text-purple-600">
-                                                        <User size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Usuarios</span>
-                                                </button>
-                                                <button onClick={() => { setActiveTab('system'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-orange-50 rounded-full text-orange-600">
-                                                        <FolderLock size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Respaldos</span>
-                                                </button>
+                                        {currentUser?.role !== 'verifier' && (
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sistema</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-purple-50 rounded-full text-purple-600">
+                                                            <User size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Usuarios</span>
+                                                    </button>
+                                                    <button onClick={() => { setActiveTab('system'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-orange-50 rounded-full text-orange-600">
+                                                            <FolderLock size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Respaldos</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         {/* Configuración */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Configuración</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button onClick={() => { setActiveTab('general'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-slate-50 rounded-full text-slate-600">
-                                                        <Settings size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">General</span>
-                                                </button>
-                                                <button onClick={() => { setActiveTab('hero'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-pink-50 rounded-full text-pink-600">
-                                                        <ImageIcon size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Estilo</span>
-                                                </button>
-                                                <button onClick={() => { setActiveTab('content'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
-                                                        <Type size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Contenido</span>
-                                                </button>
-                                                <button onClick={() => { setActiveTab('whatsapp'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                    <div className="p-3 bg-green-50 rounded-full text-green-600">
-                                                        <MessageSquare size={24} />
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">Config WA</span>
-                                                </button>
+                                        {currentUser?.role !== 'verifier' && (
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Configuración</h4>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => { setActiveTab('general'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-slate-50 rounded-full text-slate-600">
+                                                            <Settings size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">General</span>
+                                                    </button>
+                                                    <button onClick={() => { setActiveTab('hero'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-pink-50 rounded-full text-pink-600">
+                                                            <ImageIcon size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Estilo</span>
+                                                    </button>
+                                                    <button onClick={() => { setActiveTab('content'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
+                                                            <Type size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Contenido</span>
+                                                    </button>
+                                                    <button onClick={() => { setActiveTab('whatsapp'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                        <div className="p-3 bg-green-50 rounded-full text-green-600">
+                                                            <MessageSquare size={24} />
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 text-sm">Config WA</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         <button
                                             onClick={() => { setIsAuthenticated(false); setCurrentUser(null); }}

@@ -15,10 +15,27 @@ const ScanInterface: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+    // Permission State
+    const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
+
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+    const requestCameraPermission = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            // Stop the stream immediately, checks only for permission
+            stream.getTracks().forEach(track => track.stop());
+            setPermissionGranted(true);
+        } catch (err) {
+            console.error("Camera permission denied", err);
+            alert("Es necesario permitir el acceso a la cámara para escanear tickets.");
+        }
+    };
+
     useEffect(() => {
-        // Initialize Scanner
+        // Initialize Scanner ONLY if permission granted
+        if (!permissionGranted) return;
+
         // Ensure element exists before init
         const scannerElement = document.getElementById('reader');
         if (scannerElement && !scannerRef.current && !scanResult) {
@@ -40,7 +57,7 @@ const ScanInterface: React.FC = () => {
         return () => {
             // Cleanup handled by success/reset logic manually to avoid double-clear issues
         };
-    }, [scanResult]); // Re-init when scanResult is cleared
+    }, [scanResult, permissionGranted]); // Re-init when scanResult is cleared OR permission granted
 
     const onScanSuccess = (decodedText: string, decodedResult: any) => {
         if (scanResult) return;
@@ -219,12 +236,26 @@ const ScanInterface: React.FC = () => {
             </div>
 
             {/* Scanner Container */}
-            {!scanResult && (
-                <div className="w-full">
+            {!permissionGranted ? (
+                <div className="w-full bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <QrCode className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Habilitar Escáner</h3>
+                    <p className="text-slate-500 mb-6 text-sm">Necesitamos acceso a tu cámara para verificar las invitaciones.</p>
+                    <button
+                        onClick={requestCameraPermission}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full w-full transition-all active:scale-95 shadow-lg shadow-blue-200"
+                    >
+                        Activar Cámara
+                    </button>
+                </div>
+            ) : (!scanResult && (
+                <div className="w-full animate-fade-in">
                     <div id="reader" className="w-full rounded-xl overflow-hidden shadow-sm"></div>
                     <p className="text-center text-slate-500 mt-4 text-sm">Apunta la cámara al código QR de la invitación.</p>
                 </div>
-            )}
+            ))}
 
             {/* Loading */}
             {loading && (

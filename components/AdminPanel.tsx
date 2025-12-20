@@ -27,7 +27,8 @@ import {
     saveAppConfig,
     authenticateUser,
     cleanupOrphanedInvites,
-    cleanupDuplicateDistributors
+    cleanupDuplicateDistributors,
+    deleteChild // Import deleteChild
 } from '../services/storageService';
 
 export interface TicketDistributor {
@@ -1493,11 +1494,25 @@ const AdminPanel: React.FC = () => {
             let successCount = 0;
             // Iterate and delete (or use a batch service if available, currently loop for simplicity with existing service)
             for (const id of Array.from(selectedIds) as string[]) {
-                const res = await deleteRegistration(id);
-                if (res.success) successCount++;
+
+                // Handle Legacy Groups in Bulk Delete
+                if (id.startsWith('legacy_group_')) {
+                    const group = normalizedRegistrations.find(r => r.id === id);
+                    if (group) {
+                        for (const child of group.children) {
+                            const res = await deleteRegistration(child.id);
+                            if (res.success) successCount++;
+                        }
+                    }
+                } else {
+                    // Standard Delete
+                    const res = await deleteRegistration(id);
+                    if (res.success) successCount++;
+                }
             }
 
             if (successCount > 0) {
+                // We should technically reload or refresh state, but for bulk keeping it simple with a full fetch is okay
                 const updatedRegs = await getRegistrations();
                 setRegistrations(updatedRegs);
                 setRegistrationCount(updatedRegs.length);
@@ -1875,19 +1890,60 @@ const AdminPanel: React.FC = () => {
 
     const handleDelete = async (id: string, name: string) => {
         if (confirm(`¿Estás seguro de que quieres eliminar el registro de "${name}"? Esta acción no se puede deshacer.`)) {
-            const result = await deleteRegistration(id);
-            if (result.success) {
-                // Refresh list using scoped load
-                loadData();
 
-                // Remove from selection if it was selected
-                if (selectedIds.has(id)) {
-                    const newSet = new Set(selectedIds);
-                    newSet.delete(id);
-                    setSelectedIds(newSet);
+            // SPECIAL CASE: Deleting a "Virtual Group" (Legacy Data)
+            if (id.startsWith('legacy_group_')) {
+                const group = normalizedRegistrations.find(r => r.id === id);
+                if (!group) {
+                    alert("Error: No se encontró la información del grupo en memoria. Intenta recargar la página.");
+                    return;
                 }
+
+                // Delete all individual records in this group
+                let failCount = 0;
+                for (const child of group.children) {
+                    // child.id maps to the REAL Firestore Document ID
+                    const result = await deleteRegistration(child.id);
+                    if (!result.success) {
+                        console.error(`Failed to delete part of group: ${child.id}`, result);
+                        failCount++;
+                    }
+                }
+
+                if (failCount === 0) {
+                    // Optimistic Update: Remove all deleted IDs from the raw registrations state
+                    const idsToDelete = new Set(group.children.map(c => c.id));
+                    setRegistrations(prev => prev.filter(r => !idsToDelete.has(r.id)));
+                    alert("Grupo eliminado correctamente.");
+                } else {
+                    alert(`Eliminación parcial: ${failCount} registros no se pudieron borrar. Por favor revisa la consola.`);
+                    // Reload to ensure consistency in partial failure
+                    window.location.reload();
+                }
+                return;
+            }
+
+            // STANDARD CASE: Deleting a single real record
+            const result = await deleteRegistration(id);
+
+            if (result.success) {
+                // Update local state to remove the item without reloading
+                setRegistrations(prev => prev.filter(r => r.id !== id));
+                alert("Registro eliminado correctamente.");
             } else {
                 alert(result.message || "Error al eliminar el registro.");
+            }
+        }
+    };
+
+    const handleDeleteChild = async (regId: string, childId: string, inviteNumber: string, childName: string) => {
+        if (confirm(`¿Eliminar SOLO la invitación de "${childName}" (${inviteNumber})?\n\nEl registro del padre se mantendrá.`)) {
+            const result = await deleteChild(regId, childId, inviteNumber);
+            if (result.success) {
+                alert("Invitación eliminada.");
+                window.location.reload();
+            } else {
+                alert(result.message || "Error al eliminar invitación.");
             }
         }
     };
@@ -2242,19 +2298,46 @@ const AdminPanel: React.FC = () => {
                                             {/* Limits & Date */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div>
-                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Límite Máximo de Registros</label>
-                                                    <input
-                                                        type="number"
-                                                        value={localConfig.maxRegistrations}
-                                                        onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
-                                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                                    />
-                                                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                                                        <span className={`w-2 h-2 rounded-full ${registrationCount >= localConfig.maxRegistrations ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                                                        Actualmente: <span className="font-semibold">{registrationCount}</span> familias
-                                                        <span className="font-bold text-blue-600 ml-1">
-                                                            ({normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)} Juguetes)
-                                                        </span>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Meta / Capacidad Total</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="number"
+                                                            value={localConfig.maxRegistrations}
+                                                            onChange={(e) => handleInputChange('maxRegistrations', Number(e.target.value))}
+                                                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                                            placeholder="Manual"
+                                                        />
+                                                        <div className="bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 flex flex-col justify-center min-w-[100px]">
+                                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Por Rangos</span>
+                                                            <span className="text-sm font-bold text-slate-700">
+                                                                {(localConfig.ticketDistributors || []).reduce((acc, dist) => {
+                                                                    const start = dist.startRange || 0;
+                                                                    const end = dist.endRange || 0;
+                                                                    return acc + ((start > 0 && end > 0) ? (end - start + 1) : 0);
+                                                                }, 0)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1 flex-wrap">
+                                                        {(() => {
+                                                            const totalCapacity = (localConfig.ticketDistributors || []).reduce((acc, dist) => {
+                                                                const start = dist.startRange || 0;
+                                                                const end = dist.endRange || 0;
+                                                                return acc + ((start > 0 && end > 0) ? (end - start + 1) : 0);
+                                                            }, 0) || localConfig.maxRegistrations;
+                                                            const totalToys = normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0);
+                                                            const isOver = totalToys > totalCapacity;
+                                                            return (
+                                                                <>
+                                                                    <span className={`w-2 h-2 rounded-full ${isOver ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                                                                    <span>Actualmente: </span>
+                                                                    <span className="font-bold text-blue-600">
+                                                                        {totalToys} Juguetes
+                                                                    </span>
+                                                                    <span> / {totalCapacity} Capacidad Real</span>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </p>
                                                 </div>
 
@@ -2301,7 +2384,75 @@ const AdminPanel: React.FC = () => {
                                                                 className="w-32 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                                             />
                                                         </div>
-                                                        <div className="flex gap-2 items-center">
+                                                        <div className="flex gap-4 items-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+                                                            <AlertTriangle className="text-orange-600" size={24} />
+                                                            <div className="flex-grow">
+                                                                <h4 className="font-bold text-orange-800">Reparación de Base de Datos</h4>
+                                                                <p className="text-xs text-orange-700">Utiliza esto si eliminaste registros pero los códigos siguen apareciendo como "usados".</p>
+                                                            </div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    setIsLoading(true);
+                                                                    const res = await cleanupOrphanedInvites();
+                                                                    setIsLoading(false);
+                                                                    alert(res.message);
+                                                                }}
+                                                                className="px-4 py-2 bg-white border border-orange-300 text-orange-700 font-bold rounded-lg shadow-sm hover:bg-orange-100 transition-colors"
+                                                            >
+                                                                Limpiar Huérfanos
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Delete by Ticket Tool */}
+                                                        <div className="flex gap-4 items-center p-4 bg-red-50 rounded-lg border border-red-200 mt-4">
+                                                            <Trash2 className="text-red-600" size={24} />
+                                                            <div className="flex-grow">
+                                                                <h4 className="font-bold text-red-800">Borrado de Emergencia</h4>
+                                                                <p className="text-xs text-red-700">Borrar registro completo buscando por número de ticket (ej. NI0262).</p>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Ticket ID (ej. 262)"
+                                                                    id="emergency-delete-input"
+                                                                    className="px-3 py-1 text-sm border border-red-300 rounded outline-none"
+                                                                />
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const input = document.getElementById('emergency-delete-input') as HTMLInputElement;
+                                                                        const val = input.value.replace(/\D/g, '');
+                                                                        if (!val) return alert("Ingresa un número.");
+
+                                                                        // Find reg
+                                                                        const reg = normalizedRegistrations.find(r =>
+                                                                            r.children.some(c => c.inviteNumber.includes(val)) ||
+                                                                            r.inviteNumber?.includes(val)
+                                                                        );
+
+                                                                        if (!reg) return alert("❌ No encontrado. Asegúrate que el ticket existe.");
+
+                                                                        if (confirm(`⚠️ ¿ELIMINAR a ${reg.parentName || 'Usuario'}?\n\nTiene el ticket ${val}.\nEsta acción es irreversible.`)) {
+                                                                            setIsLoading(true);
+                                                                            const res = await deleteRegistration(reg.id);
+                                                                            setIsLoading(false);
+                                                                            if (res.success) {
+                                                                                alert("✅ Eliminado correctamente.");
+                                                                                window.location.reload();
+                                                                            } else {
+                                                                                alert("❌ Error: " + res.message);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="px-3 py-2 bg-white border border-red-300 text-red-700 font-bold rounded-lg shadow-sm hover:bg-red-100 transition-colors"
+                                                                >
+                                                                    Borrar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <hr className="border-slate-100 my-4" />
+
+                                                        <div className="flex gap-4 items-center">
                                                             <input
                                                                 type="number"
                                                                 placeholder="Inicio"
@@ -2805,31 +2956,44 @@ const AdminPanel: React.FC = () => {
                                             </div>
                                         ) : (
                                             <>
-                                                {/* Goal Progress */}
+                                                {/* Goal Progress - Global Limit 1000 */}
                                                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                                     <div className="flex justify-between items-end mb-2">
                                                         <div>
-                                                            <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Meta de Juguetes / Tickets</h4>
+                                                            <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Niños con Código / Meta</h4>
                                                             <div className="text-3xl font-bold text-slate-800 mt-1">
                                                                 {normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0)}
                                                                 <span className="text-lg text-slate-400 font-normal"> / {config.maxRegistrations}</span>
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                                ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                                                }`}>
-                                                                {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%
-                                                            </span>
+                                                            {(() => {
+                                                                const total = normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0);
+                                                                const missing = Math.max(0, config.maxRegistrations - total);
+                                                                return (
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${missing > 0 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                                                            Faltan {missing}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
                                                     </div>
-                                                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full transition-all duration-1000 ${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100) >= 100
-                                                                ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-green-400'
-                                                                }`}
-                                                            style={{ width: `${Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}%` }}
-                                                        ></div>
+                                                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden relative">
+                                                        {(() => {
+                                                            const total = normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0);
+                                                            const pct = Math.min(100, Math.max(0, (total / config.maxRegistrations) * 100));
+                                                            return (
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all duration-1000 ${pct >= 100 ? 'bg-green-500' : 'bg-blue-600'}`}
+                                                                    style={{ width: `${pct}%` }}
+                                                                ></div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                    <div className="text-xs text-slate-400 mt-2 text-right">
+                                                        {Math.round((normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 1), 0) / config.maxRegistrations) * 100)}% Completado
                                                     </div>
                                                 </div>
 
@@ -2935,6 +3099,19 @@ const AdminPanel: React.FC = () => {
                                                                         outerRadius={80}
                                                                         paddingAngle={5}
                                                                         dataKey="value"
+                                                                        label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                                                                            const RADIAN = Math.PI / 180;
+                                                                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                                                                            return (
+                                                                                <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12} fontWeight="bold">
+                                                                                    {`${(percent * 100).toFixed(0)}%`}
+                                                                                </text>
+                                                                            );
+                                                                        }}
+                                                                        labelLine={false}
                                                                     >
                                                                         {(stats?.genderData || []).map((entry, index) => (
                                                                             <Cell key={`cell-${index}`} fill={['#3b82f6', '#ec4899', '#a855f7'][index % 3]} />
@@ -2949,34 +3126,7 @@ const AdminPanel: React.FC = () => {
                                                             Total Niños/as: <span className="font-bold text-slate-800">{normalizedRegistrations.reduce((acc, r) => acc + r.children.length, 0)}</span>
                                                         </div>
                                                     </div>
-                                                    {/* Delivery Progress (Pie) */}
-                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600" /> Progreso Entrega</h4>
-                                                        <div className="flex-grow">
-                                                            <ResponsiveContainer width="100%" height={250}>
-                                                                <PieChart>
-                                                                    <Pie
-                                                                        data={stats?.deliveryProgressData || []}
-                                                                        cx="50%"
-                                                                        cy="50%"
-                                                                        innerRadius={60}
-                                                                        outerRadius={80}
-                                                                        paddingAngle={5}
-                                                                        dataKey="value"
-                                                                    >
-                                                                        {(stats?.deliveryProgressData || []).map((entry, index) => (
-                                                                            <Cell key={`cell-${index}`} fill={entry.name === 'Entregados' ? '#16a34a' : '#94a3b8'} />
-                                                                        ))}
-                                                                    </Pie>
-                                                                    <RechartsTooltip />
-                                                                    <Legend verticalAlign="bottom" height={36} />
-                                                                </PieChart>
-                                                            </ResponsiveContainer>
-                                                        </div>
-                                                        <div className="text-center text-sm text-slate-500 mt-2">
-                                                            {stats?.deliveryProgressData.find(d => d.name === 'Entregados')?.value || 0} Entregados / {registrations.reduce((acc, r) => acc + (r.children?.length || r.childCount || 0), 0)} Total
-                                                        </div>
-                                                    </div>
+
 
 
                                                     {/* Age Distribution (Bar) */}
@@ -2995,32 +3145,7 @@ const AdminPanel: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Top Colonies (Bar - Vertical) */}
-                                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px] flex flex-col md:col-span-2 lg:col-span-1">
-                                                        <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                                                            <MapPin className="w-4 h-4 text-purple-500" /> Top Lugares
-                                                        </h4>
-                                                        <div className="flex-grow">
-                                                            <ResponsiveContainer width="100%" height={250}>
-                                                                <BarChart data={(stats?.colonyData || []).slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                                                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                                                    <XAxis type="number" hide />
-                                                                    <YAxis
-                                                                        dataKey="displayName"
-                                                                        type="category"
-                                                                        width={90}
-                                                                        tick={{ fontSize: 10 }}
-                                                                        interval={0}
-                                                                    />
-                                                                    <RechartsTooltip
-                                                                        contentStyle={{ fontSize: '12px' }}
-                                                                        cursor={{ fill: 'transparent' }}
-                                                                    />
-                                                                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
-                                                                </BarChart>
-                                                            </ResponsiveContainer>
-                                                        </div>
-                                                    </div>
+
 
                                                     {/* Full Colonies List (Scrollable Chart) */}
                                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col col-span-1 md:col-span-2 lg:col-span-4">
@@ -3037,8 +3162,8 @@ const AdminPanel: React.FC = () => {
                                                                         <YAxis
                                                                             dataKey="name" // Use full name here
                                                                             type="category"
-                                                                            width={150}
-                                                                            tick={{ fontSize: 10 }}
+                                                                            width={100}
+                                                                            tick={{ fontSize: 9 }}
                                                                             interval={0}
                                                                         />
                                                                         <RechartsTooltip
@@ -3215,25 +3340,38 @@ const AdminPanel: React.FC = () => {
                                                                                             {reg.children && reg.children.length > 0 ? (
                                                                                                 <div className="space-y-1">
                                                                                                     {reg.children.map((child, idx) => (
-                                                                                                        <div key={idx} className={`flex items-center justify-between text-xs border p-1.5 rounded gap-2 ${child.status === 'delivered' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200'}`}>
-                                                                                                            <div className="flex flex-col">
-                                                                                                                <div className="flex items-center gap-1">
-                                                                                                                    <span className="font-bold text-slate-700">{child.fullName || `Niño #${idx + 1}`}</span>
-                                                                                                                    {child.status === 'delivered' && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded-full font-medium">Entregado</span>}
+                                                                                                        <div key={idx} className={`flex items-center justify-between text-xs bg-white border p-2 rounded-lg ${child.status === 'delivered' ? 'border-green-200 bg-green-50' : 'border-slate-100'}`}>
+                                                                                                            <div>
+                                                                                                                <div className="font-bold text-slate-700 flex items-center gap-2">
+                                                                                                                    {child.fullName}
+                                                                                                                    {child.status === 'delivered' && <CheckCircle size={12} className="text-green-600" />}
                                                                                                                 </div>
-                                                                                                                <span className="text-[10px] text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</span>
+                                                                                                                <div className="text-slate-500">{child.age} años - {child.gender} - {child.inviteNumber}</div>
                                                                                                             </div>
-                                                                                                            <button
-                                                                                                                onClick={() => setViewingQR({
-                                                                                                                    name: child.fullName || `Niño #${idx + 1}`,
-                                                                                                                    invite: child.inviteNumber,
-                                                                                                                    data: JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName })
-                                                                                                                })}
-                                                                                                                className="bg-slate-800 text-white p-1 rounded hover:bg-black transition-colors"
-                                                                                                                title="Ver QR"
-                                                                                                            >
-                                                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-qr-code"><rect width="5" height="5" x="3" y="3" rx="1" /><rect width="5" height="5" x="16" y="3" rx="1" /><rect width="5" height="5" x="3" y="16" rx="1" /><path d="M21 16h-3a2 2 0 0 0-2 2v3" /><path d="M21 21v.01" /><path d="M12 7v3a2 2 0 0 1-2 2H7" /><path d="M3 12h.01" /><path d="M12 3h.01" /><path d="M12 16v.01" /><path d="M16 12h1" /><path d="M21 12v.01" /><path d="M12 21v-1" /></svg>
-                                                                                                            </button>
+                                                                                                            <div className="flex gap-2">
+                                                                                                                <button
+                                                                                                                    onClick={(e) => {
+                                                                                                                        e.stopPropagation();
+                                                                                                                        setViewingQR({
+                                                                                                                            name: child.fullName || `Niño #${idx + 1}`,
+                                                                                                                            invite: child.inviteNumber,
+                                                                                                                            data: JSON.stringify({ parentId: reg.id, childId: child.id, invite: child.inviteNumber, name: child.fullName })
+                                                                                                                        });
+                                                                                                                    }}
+                                                                                                                    className="bg-slate-800 text-white p-1.5 rounded-lg"
+                                                                                                                >
+                                                                                                                    <ScanLine size={16} />
+                                                                                                                </button>
+                                                                                                                <button
+                                                                                                                    onClick={(e) => {
+                                                                                                                        e.stopPropagation();
+                                                                                                                        handleDeleteChild(reg.id, child.id, child.inviteNumber, child.fullName);
+                                                                                                                    }}
+                                                                                                                    className="bg-red-50 text-red-600 p-1.5 rounded-lg border border-red-200"
+                                                                                                                >
+                                                                                                                    <Trash2 size={16} />
+                                                                                                                </button>
+                                                                                                            </div>
                                                                                                         </div>
                                                                                                     ))}
                                                                                                 </div>
@@ -3378,15 +3516,6 @@ const AdminPanel: React.FC = () => {
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>
-                                                                                        <button
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                handleDelete(reg.id, reg.fullName);
-                                                                                            }}
-                                                                                            className="text-slate-400 hover:text-red-500 p-1"
-                                                                                        >
-                                                                                            <Trash2 className="w-5 h-5" />
-                                                                                        </button>
                                                                                     </div>
 
                                                                                     <div className="pl-8 grid grid-cols-2 gap-2 text-sm">

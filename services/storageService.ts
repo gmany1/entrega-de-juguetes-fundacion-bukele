@@ -171,13 +171,15 @@ export const updateRegistration = async (id: string, data: Partial<Registration>
 };
 
 export const deleteRegistration = async (id: string): Promise<StorageResult> => {
+  console.log(`[Delete] Iniciando eliminación del registro ${id}...`);
   try {
     // Ensure we are authenticated
     await waitForAuth;
     if (!auth.currentUser) {
-      console.error("No auth user found");
+      console.error("[Delete] No auth user found");
       return { success: false, message: "Error de permisos: Firebase Auth no conectado." };
     }
+    // console.log("[Delete] Usuario autenticado:", auth.currentUser.uid);
 
     // 1. Get the registration to find which invites to release
     const regRef = doc(db, COLLECTION_NAME, id);
@@ -185,6 +187,7 @@ export const deleteRegistration = async (id: string): Promise<StorageResult> => 
 
     if (regSnap.exists()) {
       const data = regSnap.data();
+      console.log("[Delete] Registro encontrado. Buscando invitaciones asociadas...", data);
 
       // Collect invites
       const invitesToDelete = [];
@@ -196,20 +199,66 @@ export const deleteRegistration = async (id: string): Promise<StorageResult> => 
       // Legacy check
       if (data.inviteNumber) invitesToDelete.push(data.inviteNumber);
 
+      console.log(`[Delete] Invitaciones a liberar: ${invitesToDelete.join(', ')}`);
+
       // Delete from taken_invites
       for (const invite of invitesToDelete) {
-        if (invite) await deleteDoc(doc(db, 'taken_invites', invite));
+        if (invite) {
+          console.log(`[Delete] Eliminando invitación ocupada: ${invite}`);
+          await deleteDoc(doc(db, 'taken_invites', invite));
+        }
       }
+    } else {
+      console.warn("[Delete] El documento de registro no existe (posiblemente ya eliminado).");
     }
 
     // 2. Delete the registration
+    console.log("[Delete] Eliminando documento principal...");
     await deleteDoc(regRef);
+
+    // 3. VERIFICATION (Double Check)
+    const checkSnap = await getDoc(regRef);
+    if (checkSnap.exists()) {
+      console.error("[Delete] ZOMBIE RECORD: Delete reported success but doc exists.");
+      return { success: false, message: "Error CRÍTICO: El registro no se pudo eliminar (Persistencia de Base de Datos)." };
+    }
+
+    console.log("[Delete] Eliminación exitosa.");
     return { success: true };
   } catch (error: any) {
-    console.error("Error deleting registration", error);
+    console.error("[Delete] Error deleting registration", error);
     // Return the actual error code if possible
-    const msg = error.code ? `Error Google: ${error.code}` : "Error al eliminar el registro.";
+    const msg = error.code ? `Error Firebase: ${error.code} (${error.message})` : "Error al eliminar el registro.";
     return { success: false, message: msg };
+  }
+};
+
+export const deleteChild = async (registrationId: string, childId: string, inviteNumber: string): Promise<StorageResult> => {
+  try {
+    const regRef = doc(db, COLLECTION_NAME, registrationId);
+
+    await runTransaction(db, async (transaction) => {
+      const regSnap = await transaction.get(regRef);
+      if (!regSnap.exists()) throw "Registro no encontrado.";
+
+      const data = regSnap.data();
+      const currentChildren = data.children || [];
+      const newChildren = currentChildren.filter((c: any) => c.id !== childId);
+
+      // 1. Update Registration with removed child
+      transaction.update(regRef, { children: newChildren });
+
+      // 2. Delete the invite from taken_invites (if it exists)
+      if (inviteNumber) {
+        const inviteRef = doc(db, 'taken_invites', inviteNumber);
+        transaction.delete(inviteRef);
+      }
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting child", error);
+    return { success: false, message: typeof error === 'string' ? error : "Error al eliminar niño." };
   }
 };
 

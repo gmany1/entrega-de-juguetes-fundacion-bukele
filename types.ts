@@ -98,13 +98,13 @@ export const DEPARTMENTS = [
 
 export const DEFAULT_CONFIG: AppConfig = {
   eventDate: "23 de Diciembre",
-  maxRegistrations: 850,
+  maxRegistrations: 1000,
   isRegistrationOpen: true,
   ticketDistributors: [
-    { name: "Veronica Flores", phone: "" },
-    { name: "Roxana Miron", phone: "" },
-    { name: "Vladimir Mendoza", phone: "" },
-    { name: "Miguel Lazo", phone: "" }
+    { name: "Veronica Flores", phone: "", startRange: 1, endRange: 300 },
+    { name: "Roxana Miron", phone: "", startRange: 301, endRange: 500 },
+    { name: "Vladimir Mendoza", phone: "", startRange: 501, endRange: 800 },
+    { name: "Miguel Lazo", phone: "", startRange: 801, endRange: 850 }
   ], // Default value
   heroTitle: "Compartiendo Sonrisas",
   heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",

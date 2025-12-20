@@ -301,67 +301,138 @@ const UsersManagementTab = () => {
                     isLoading ? (
                         <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" />Cargando...</div>
                     ) : (
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-medium">
-                                <tr>
-                                    <th className="px-4 py-3">Nombre</th>
-                                    <th className="px-4 py-3">Usuario</th>
-                                    <th className="px-4 py-3">Rol</th>
-                                    <th className="px-4 py-3">WhatsApp</th>
-                                    <th className="px-4 py-3">Distribuidor</th>
-                                    <th className="px-4 py-3 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
+                        <>
+                            <table className="w-full text-left text-sm hidden md:table">
+                                <thead className="bg-slate-50 text-slate-500 font-medium">
+                                    <tr>
+                                        <th className="px-4 py-3">Nombre</th>
+                                        <th className="px-4 py-3">Usuario</th>
+                                        <th className="px-4 py-3">Rol</th>
+                                        <th className="px-4 py-3">WhatsApp</th>
+                                        <th className="px-4 py-3">Distribuidor</th>
+                                        <th className="px-4 py-3 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {users.map(u => (
+                                        <tr key={u.id} className="hover:bg-slate-50/50">
+                                            <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
+                                            <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                                                    {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
+                                            <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
+                                            <td className="px-4 py-3 flex justify-end gap-2">
+                                                <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
+                                                {u.role !== 'admin' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const appUrl = window.location.origin; // Current URL
+                                                            let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+
+                                                            if (u.role === 'verifier') {
+                                                                message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
+                                                            } else if (u.role === 'whatsapp_sender') {
+                                                                message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
+                                                            }
+
+                                                            // Use stored whatsapp number if available, otherwise open blank for user to choose
+                                                            const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
+                                                            const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+                                                            window.open(url, '_blank');
+                                                        }}
+                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                                        title="Enviar Onboarding por WhatsApp"
+                                                    >
+                                                        <MessageSquare size={16} />
+                                                    </button>
+                                                )}
+                                                {u.username !== 'jorge' && (
+                                                    <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {users.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+
+                            {/* Mobile Cards */}
+                            <div className="md:hidden divide-y divide-slate-100">
                                 {users.map(u => (
-                                    <tr key={u.id} className="hover:bg-slate-50/50">
-                                        <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
-                                        <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
+                                    <div key={u.id} className="p-4 flex flex-col gap-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold text-slate-900">{u.name}</div>
+                                                <div className="text-xs font-mono text-slate-500 mt-0.5">@{u.username}</div>
+                                            </div>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
+                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIF'}
                                             </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
-                                        <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
-                                        <td className="px-4 py-3 flex justify-end gap-2">
-                                            <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                            <div className="flex items-center gap-1.5">
+                                                <MessageSquare size={12} className="text-slate-400" />
+                                                {u.whatsapp || 'Sin WhatsApp'}
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <MapPin size={12} className="text-slate-400" />
+                                                {u.assignedDistributor || 'Sin Zona'}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
+                                            <button
+                                                onClick={() => handleEdit(u)}
+                                                className="px-3 py-1.5 bg-slate-50 text-blue-600 rounded-lg text-xs font-medium border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1"
+                                            >
+                                                <Settings size={12} /> Editar
+                                            </button>
+
                                             {u.role !== 'admin' && (
                                                 <button
                                                     onClick={() => {
-                                                        const appUrl = window.location.origin; // Current URL
+                                                        const appUrl = window.location.origin;
                                                         let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
 
                                                         if (u.role === 'verifier') {
                                                             message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
-                                                        } else if (u.role === 'whatsapp_sender') {
-                                                            message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
                                                         }
 
-                                                        // Use stored whatsapp number if available, otherwise open blank for user to choose
                                                         const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
                                                         const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
                                                         window.open(url, '_blank');
                                                     }}
-                                                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                                                    title="Enviar Onboarding por WhatsApp"
+                                                    className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium border border-green-200 hover:bg-green-100 transition-colors flex items-center gap-1"
                                                 >
-                                                    <MessageSquare size={16} />
+                                                    <MessageSquare size={12} /> Enviar Info
                                                 </button>
                                             )}
+
                                             {u.username !== 'jorge' && (
-                                                <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
+                                                <button
+                                                    onClick={() => handleDeleteUser(u.id, u.name)}
+                                                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                                >
+                                                    <Trash2 size={12} /> Eliminar
+                                                </button>
                                             )}
-                                        </td>
-                                    </tr>
+                                        </div>
+                                    </div>
                                 ))}
                                 {users.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
-                                    </tr>
+                                    <div className="p-8 text-center text-slate-400 italic text-sm">No hay usuarios registrados.</div>
                                 )}
-                            </tbody>
-                        </table>
+                            </div>
+                        </>
                     )
                 }
             </div>

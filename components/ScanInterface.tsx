@@ -215,7 +215,14 @@ const ScanInterface: React.FC = () => {
                         </div>
                     )}
                     <span className="text-xs text-slate-400">|</span>
-                    <span className="text-xs text-slate-500 font-medium">Lista: {whitelist.length} regs</span>
+                    <div className="flex flex-col leading-none">
+                        <span className="text-xs text-slate-900 font-bold">
+                            {whitelist.reduce((acc, r) => acc + (r.children?.length || 1), 0)} Tickets
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                            ({whitelist.length} Familias)
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex gap-2">

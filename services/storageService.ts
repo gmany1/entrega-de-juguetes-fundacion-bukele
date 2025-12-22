@@ -29,13 +29,34 @@ export const getRegistrations = async (distributorFilter?: string): Promise<Regi
 
 export const getRemainingSlots = async (maxLimit: number): Promise<number> => {
   try {
-    const coll = collection(db, COLLECTION_NAME);
-    const snapshot = await getCountFromServer(coll);
-    const currentCount = snapshot.data().count;
+    // OPTIMIZATION: Read from counter document to avoid "Resource Exhausted" on Aggregation Queries
+    const counterRef = doc(db, 'counters', 'registrations');
+    const snap = await getDoc(counterRef);
+
+    let currentCount = 0;
+
+    if (snap.exists()) {
+      currentCount = snap.data().count;
+    } else {
+      // Fallback: Only use aggregation if counter doc is missing
+      console.warn("Counter not found. Using fallback aggregation.");
+      const coll = collection(db, COLLECTION_NAME);
+      const snapshot = await getCountFromServer(coll);
+      currentCount = snapshot.data().count;
+
+      // Self-heal: Create the counter doc
+      try {
+        await setDoc(counterRef, { count: currentCount });
+      } catch (e) {
+        console.error("Failed to save counter fallback", e);
+      }
+    }
+
     return Math.max(0, maxLimit - currentCount);
   } catch (error) {
     console.error("Error fetching count", error);
-    return 0; // Fail safe
+    // If fallback fails, we return 0 to be safe, but now we have a much more robust primary method
+    return 0;
   }
 };
 

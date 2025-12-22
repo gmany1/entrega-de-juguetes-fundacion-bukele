@@ -369,6 +369,72 @@ export const cleanupOrphanedInvites = async (): Promise<StorageResult> => {
   }
 };
 
+export const repairTakenInvitesIndex = async (): Promise<StorageResult> => {
+  try {
+    console.log("Starting taken_invites repair...");
+    const regQuery = query(collection(db, COLLECTION_NAME));
+    const regSnap = await getDocs(regQuery);
+
+    let fixedCount = 0;
+    const batchSize = 400;
+    const updates = [];
+
+    // Collect all needed writes
+    for (const docSnap of regSnap.docs) {
+      const data = docSnap.data() as Registration;
+      const children = data.children || [];
+
+      // Handle legacy root fields if necessary, though we prefer children array
+      if (data.inviteNumber && (!data.children || data.children.length === 0)) {
+        updates.push({
+          ref: doc(db, 'taken_invites', data.inviteNumber),
+          data: {
+            usedByChild: data.fullName || 'Beneficiario',
+            parentRegId: docSnap.id,
+            timestamp: data.timestamp || new Date().toISOString()
+          }
+        });
+      }
+
+      for (const child of children) {
+        if (child.inviteNumber) {
+          updates.push({
+            ref: doc(db, 'taken_invites', child.inviteNumber),
+            data: {
+              usedByChild: child.fullName || 'Menor',
+              parentRegId: docSnap.id,
+              timestamp: data.timestamp || new Date().toISOString()
+            }
+          });
+        }
+      }
+    }
+
+    // Execute in batches
+    const chunks = [];
+    for (let i = 0; i < updates.length; i += batchSize) {
+      chunks.push(updates.slice(i, i + batchSize));
+    }
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(op => {
+        // We use set with merge to be safe, or just set to overwrite ensures authoritative source is Registration
+        batch.set(op.ref, op.data);
+      });
+      await batch.commit();
+      fixedCount += chunk.length;
+    }
+
+    console.log(`Repaired ${fixedCount} indices.`);
+    return { success: true, message: `Se regeneró el índice de seguridad para ${fixedCount} tickets. El sistema ahora bloqueará duplicados correctamente.` };
+
+  } catch (error: any) {
+    console.error("Error repairing index", error);
+    return { success: false, message: "Error al reparar índice." };
+  }
+};
+
 // --- Global Configuration (Settings) ---
 
 export const getAppConfig = async (): Promise<any | null> => {

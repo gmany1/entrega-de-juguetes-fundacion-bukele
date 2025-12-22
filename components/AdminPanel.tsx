@@ -98,7 +98,7 @@ const TextAreaGroup = ({ label, value, onChange }: { label: string, value: strin
 
 // --- User Management Component ---
 
-const UsersManagementTab = () => {
+const UsersManagementTab = ({ registrations = [] }: { registrations?: Registration[] }) => {
     const { config } = useConfig();
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -250,13 +250,17 @@ const UsersManagementTab = () => {
                         <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
                         <select
                             value={formData.role}
-                            onChange={e => setFormData({ ...formData, role: e.target.value as SystemUser['role'] })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            onChange={e => setFormData({ ...formData, role: e.target.value as any })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="verifier">Verificador</option>
-                            <option value="admin">Administrador</option>
-                            <option value="whatsapp_sender">Enviador WhatsApp</option>
+                            <option value="verifier">Distribuidor / Staff (Limitado)</option>
+                            <option value="admin">Administrador Total (Full Access)</option>
                         </select>
+                        <p className="text-xs text-slate-500 mt-1">
+                            {formData.role === 'admin'
+                                ? "Acceso total a configuración, base de datos y todos los registros."
+                                : "Acceso limitado a: Escáner QR, Lista de Envíos y Auditoría. Solo verá registros de su distribuidor asignado."}
+                        </p>
                     </div>
 
                     {(formData.role === 'verifier' || formData.role === 'whatsapp_sender') && (
@@ -309,54 +313,110 @@ const UsersManagementTab = () => {
                                         <th className="px-4 py-3">Nombre</th>
                                         <th className="px-4 py-3">Usuario</th>
                                         <th className="px-4 py-3">Rol</th>
-                                        <th className="px-4 py-3">WhatsApp</th>
+                                        <th className="px-4 py-3">Progreso Envíos</th>
                                         <th className="px-4 py-3">Distribuidor</th>
                                         <th className="px-4 py-3 text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {users.map(u => (
-                                        <tr key={u.id} className="hover:bg-slate-50/50">
-                                            <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
-                                            <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                                                    {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-slate-500">{u.whatsapp || '-'}</td>
-                                            <td className="px-4 py-3 text-slate-500">{u.assignedDistributor || '-'}</td>
-                                            <td className="px-4 py-3 flex justify-end gap-2">
-                                                <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
-                                                {u.role !== 'admin' && (
-                                                    <button
-                                                        onClick={() => {
-                                                            const appUrl = window.location.origin; // Current URL
-                                                            let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+                                    {users.map(u => {
+                                        // Calculate Stats for Distributor
+                                        let stats = { total: 0, sent: 0, pending: 0 };
+                                        const distConfig = config.ticketDistributors?.find(d => d.name === u.assignedDistributor);
 
-                                                            if (u.role === 'verifier') {
-                                                                message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
-                                                            } else if (u.role === 'whatsapp_sender') {
-                                                                message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
-                                                            }
+                                        if (u.role === 'verifier' && distConfig && distConfig.startRange && distConfig.endRange && registrations && registrations.length > 0) {
+                                            const start = distConfig.startRange;
+                                            const end = distConfig.endRange;
 
-                                                            // Use stored whatsapp number if available, otherwise open blank for user to choose
-                                                            const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
-                                                            const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
-                                                            window.open(url, '_blank');
-                                                        }}
-                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                                                        title="Enviar Onboarding por WhatsApp"
-                                                    >
-                                                        <MessageSquare size={16} />
-                                                    </button>
-                                                )}
-                                                {u.username !== 'jorge' && (
-                                                    <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                            registrations.forEach(reg => {
+                                                // 1. Modern: Check children array
+                                                if (reg.children && Array.isArray(reg.children)) {
+                                                    reg.children.forEach(child => {
+                                                        const num = parseInt(String(child.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                                                        if (num >= start && num <= end) {
+                                                            stats.total++;
+                                                            if (reg.whatsappSent) stats.sent++; else stats.pending++;
+                                                        }
+                                                    });
+                                                }
+                                                // 2. Legacy: Check single invite
+                                                else if (reg.inviteNumber) {
+                                                    const num = parseInt(String(reg.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                                                    if (num >= start && num <= end) {
+                                                        stats.total++;
+                                                        if (reg.whatsappSent) stats.sent++; else stats.pending++;
+                                                    }
+                                                }
+                                            });
+                                        }
+
+                                        return (
+                                            <tr key={u.id} className="hover:bg-slate-50/50">
+                                                <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
+                                                <td className="px-4 py-3 font-mono text-slate-600">{u.username}</td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIFICADOR'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {u.role === 'verifier' && stats.total > 0 ? (
+                                                        <div className="flex flex-col text-xs space-y-1">
+                                                            <div className="flex justify-between gap-2 font-bold text-slate-700">
+                                                                <span>{Math.round((stats.sent / stats.total) * 100)}%</span>
+                                                                <span className="text-slate-400">{stats.sent}/{stats.total}</span>
+                                                            </div>
+                                                            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-green-500 rounded-full" style={{ width: `${(stats.sent / stats.total) * 100}%` }}></div>
+                                                            </div>
+                                                            {stats.pending > 0 && <span className="text-[10px] text-orange-500 font-medium">{stats.pending} Pendientes</span>}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-slate-700 font-medium">{u.assignedDistributor || '-'}</span>
+                                                        {distConfig && (
+                                                            <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded w-fit">
+                                                                Rango: {distConfig.startRange} - {distConfig.endRange}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 flex justify-end gap-2">
+                                                    <button onClick={() => handleEdit(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Settings size={16} /></button>
+                                                    {u.role !== 'admin' && (
+                                                        <button
+                                                            onClick={() => {
+                                                                const appUrl = window.location.origin; // Current URL
+                                                                let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+
+                                                                if (u.role === 'verifier') {
+                                                                    message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
+                                                                } else if (u.role === 'whatsapp_sender') {
+                                                                    message += `💬 *Rol: Envíos WhatsApp*\n\nTu tarea es enviar las confirmaciones y QRs a los padres beneficiados.`;
+                                                                }
+
+                                                                // Use stored whatsapp number if available, otherwise open blank for user to choose
+                                                                const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
+                                                                const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+                                                                window.open(url, '_blank');
+                                                            }}
+                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                                            title="Enviar Onboarding por WhatsApp"
+                                                        >
+                                                            <MessageSquare size={16} />
+                                                        </button>
+                                                    )}
+                                                    {u.username !== 'jorge' && (
+                                                        <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={16} /></button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {users.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay usuarios registrados (solo Super Admin hardcoded).</td>
@@ -367,68 +427,116 @@ const UsersManagementTab = () => {
 
                             {/* Mobile Cards */}
                             <div className="md:hidden divide-y divide-slate-100">
-                                {users.map(u => (
-                                    <div key={u.id} className="p-4 flex flex-col gap-3">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="font-bold text-slate-900">{u.name}</div>
-                                                <div className="text-xs font-mono text-slate-500 mt-0.5">@{u.username}</div>
+                                {users.map(u => {
+                                    // Calculate Stats for Distributor
+                                    let stats = { total: 0, sent: 0, pending: 0 };
+                                    const distConfig = config.ticketDistributors?.find(d => d.name === u.assignedDistributor);
+
+                                    if (u.role === 'verifier' && distConfig && distConfig.startRange && distConfig.endRange && registrations && registrations.length > 0) {
+                                        const start = distConfig.startRange;
+                                        const end = distConfig.endRange;
+
+                                        registrations.forEach(reg => {
+                                            // 1. Modern: Check children array
+                                            if (reg.children && Array.isArray(reg.children)) {
+                                                reg.children.forEach(child => {
+                                                    const num = parseInt(String(child.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                                                    if (num >= start && num <= end) {
+                                                        stats.total++;
+                                                        if (reg.whatsappSent) stats.sent++; else stats.pending++;
+                                                    }
+                                                });
+                                            }
+                                            // 2. Legacy: Check single invite
+                                            else if (reg.inviteNumber) {
+                                                const num = parseInt(String(reg.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                                                if (num >= start && num <= end) {
+                                                    stats.total++;
+                                                    if (reg.whatsappSent) stats.sent++; else stats.pending++;
+                                                }
+                                            }
+                                        });
+                                    }
+
+                                    return (
+                                        <div key={u.id} className="p-4 flex flex-col gap-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-slate-900">{u.name}</div>
+                                                    <div className="text-xs font-mono text-slate-500 mt-0.5">@{u.username}</div>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
+                                                    {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIF'}
+                                                </span>
                                             </div>
-                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
-                                                {u.role === 'admin' ? 'ADMIN' : u.role === 'whatsapp_sender' ? 'WA SENDER' : 'VERIF'}
-                                            </span>
-                                        </div>
 
-                                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                                            <div className="flex items-center gap-1.5">
-                                                <MessageSquare size={12} className="text-slate-400" />
-                                                {u.whatsapp || 'Sin WhatsApp'}
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                                <div className="flex items-center gap-1.5">
+                                                    <MessageSquare size={12} className="text-slate-400" />
+                                                    {u.whatsapp || 'Sin WhatsApp'}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <MapPin size={12} className="text-slate-400" />
+                                                    {u.assignedDistributor || 'Sin Zona'}
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <MapPin size={12} className="text-slate-400" />
-                                                {u.assignedDistributor || 'Sin Zona'}
-                                            </div>
-                                        </div>
 
-                                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
-                                            <button
-                                                onClick={() => handleEdit(u)}
-                                                className="px-3 py-1.5 bg-slate-50 text-blue-600 rounded-lg text-xs font-medium border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1"
-                                            >
-                                                <Settings size={12} /> Editar
-                                            </button>
-
-                                            {u.role !== 'admin' && (
-                                                <button
-                                                    onClick={() => {
-                                                        const appUrl = window.location.origin;
-                                                        let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
-
-                                                        if (u.role === 'verifier') {
-                                                            message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
-                                                        }
-
-                                                        const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
-                                                        const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
-                                                        window.open(url, '_blank');
-                                                    }}
-                                                    className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium border border-green-200 hover:bg-green-100 transition-colors flex items-center gap-1"
-                                                >
-                                                    <MessageSquare size={12} /> Enviar Info
-                                                </button>
+                                            {u.role === 'verifier' && stats.total > 0 && (
+                                                <div className="bg-slate-50 p-2 rounded border border-slate-100 flex flex-col gap-1 mt-1">
+                                                    <div className="flex justify-between text-xs font-bold text-slate-700">
+                                                        <span>Progreso Envíos</span>
+                                                        <span>{Math.round((stats.sent / stats.total) * 100)}% ({stats.sent}/{stats.total})</span>
+                                                    </div>
+                                                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${(stats.sent / stats.total) * 100}%` }}></div>
+                                                    </div>
+                                                    <div className="flex justify-between text-[10px] text-slate-400">
+                                                        <span>Pendientes: <span className="text-orange-500 font-bold">{stats.pending}</span></span>
+                                                        {distConfig && <span>Rango: {distConfig.startRange}-{distConfig.endRange}</span>}
+                                                    </div>
+                                                </div>
                                             )}
 
-                                            {u.username !== 'jorge' && (
+                                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
                                                 <button
-                                                    onClick={() => handleDeleteUser(u.id, u.name)}
-                                                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                                    onClick={() => handleEdit(u)}
+                                                    className="px-3 py-1.5 bg-slate-50 text-blue-600 rounded-lg text-xs font-medium border border-slate-200 hover:bg-blue-50 transition-colors flex items-center gap-1"
                                                 >
-                                                    <Trash2 size={12} /> Eliminar
+                                                    <Settings size={12} /> Editar
                                                 </button>
-                                            )}
+
+                                                {u.role !== 'admin' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const appUrl = window.location.origin;
+                                                            let message = `Hola *${u.name}*! 👋\n\nHas sido registrado en el sistema de *Fundación Bukele*.\n\n🔐 *Tus Credenciales:*\nUsuario: ${u.username}\nContraseña: ${u.password}\n\n🌐 *Accede aquí:* ${appUrl}\n\n`;
+
+                                                            if (u.role === 'verifier') {
+                                                                message += `🛡️ *Rol: Verificador*\n📍 *Punto:* ${u.assignedDistributor}\n\nTu tarea es escanear los códigos QR de los beneficiarios para entregar los juguetes.`;
+                                                            }
+
+                                                            const targetPhone = u.whatsapp ? u.whatsapp.replace(/[^0-9]/g, '') : '';
+                                                            const url = `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+                                                            window.open(url, '_blank');
+                                                        }}
+                                                        className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium border border-green-200 hover:bg-green-100 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageSquare size={12} /> Enviar Info
+                                                    </button>
+                                                )}
+
+                                                {u.username !== 'jorge' && (
+                                                    <button
+                                                        onClick={() => handleDeleteUser(u.id, u.name)}
+                                                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium border border-red-200 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <Trash2 size={12} /> Eliminar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {users.length === 0 && (
                                     <div className="p-8 text-center text-slate-400 italic text-sm">No hay usuarios registrados.</div>
                                 )}
@@ -766,34 +874,74 @@ const AdminPanel: React.FC = () => {
     const [registrationCount, setRegistrationCount] = useState(0);
     const [registrations, setRegistrations] = useState<Registration[]>([]);
 
-    useEffect(() => {
-        if (isAuthenticated) {
-            getRegistrations().then(regs => {
-                setRegistrationCount(regs.length);
-                setRegistrations(regs);
-            });
-        }
-    }, [isAuthenticated, isOpen]);
+
     const [aiSourceImage, setAiSourceImage] = useState<string | null>(null);
     const [viewingQR, setViewingQR] = useState<{ name: string, data: string, invite: string } | null>(null);
     const [editingReg, setEditingReg] = useState<Registration | null>(null);
 
     const loadData = async () => {
-        // SCOPED VIEW: Filter by distributor for Verifiers
-        const distributorFilter = (currentUser?.role === 'verifier' && currentUser?.assignedDistributor)
-            ? currentUser.assignedDistributor
-            : undefined;
+        // 1. ALWAYS Fetch ALL data from DB
+        // We do this to ensure we have the full dataset to apply strict RANGE checks against.
+        // Relying on DB-side filtering (where 'ticketDistributor' == user) fails if the records
+        // are only associated by number range and not explicitly tagged by name in the DB.
+        let data = await getRegistrations();
 
-        const data = await getRegistrations(distributorFilter);
+        // 2. Security / Scoping Logic (Client-Side)
+        if (currentUser?.role === 'verifier' || currentUser?.role === 'whatsapp_sender') {
+            if (currentUser.assignedDistributor) {
+                // Wait for config to be available, or try to find match (Case Insensitive)
+                const distConfig = config.ticketDistributors?.find(d =>
+                    d.name.toLowerCase().trim() === currentUser.assignedDistributor?.toLowerCase().trim()
+                );
+
+                if (distConfig && distConfig.startRange && distConfig.endRange) {
+                    // CASE A: Range-Based Distributor (Primary)
+                    // Ensure robust numeric typing
+                    const start = Number(distConfig.startRange);
+                    const end = Number(distConfig.endRange);
+
+                    // Robust filtering for both Modern (Children Array) and Legacy (Single Invite) records
+                    data = data.reduce<Registration[]>((acc, reg) => {
+                        // 1. Modern Records: Filter the children array
+                        if (reg.children && Array.isArray(reg.children) && reg.children.length > 0) {
+                            const validChildren = reg.children.filter(child => {
+                                const num = parseInt(String(child.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                                return num >= start && num <= end;
+                            });
+                            if (validChildren.length > 0) {
+                                acc.push({ ...reg, children: validChildren });
+                            }
+                        }
+                        // 2. Legacy Records: Check the single invite number
+                        else if (reg.inviteNumber) {
+                            const num = parseInt(String(reg.inviteNumber).replace(/\D/g, ''), 10) || 0;
+                            if (num >= start && num <= end) {
+                                acc.push(reg);
+                            }
+                        }
+                        return acc;
+                    }, []);
+
+                } else {
+                    // CASE B: Legacy/Manual Distributor (Text Match)
+                    // Only if no numeric range is found, we fall back to the text tag
+                    data = data.filter(reg => reg.ticketDistributor === currentUser.assignedDistributor);
+                }
+            } else {
+                // Verifier defined but no distributor assigned? Show nothing for safety.
+                data = [];
+            }
+        }
+
         setRegistrationCount(data.length);
         setRegistrations(data);
     };
 
     useEffect(() => {
-        if (isAuthenticated) {
+        if (isAuthenticated && currentUser) {
             loadData();
         }
-    }, [isAuthenticated, isOpen]);
+    }, [isAuthenticated, isOpen, currentUser, config]);
 
     const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
@@ -1182,8 +1330,10 @@ const AdminPanel: React.FC = () => {
     };
 
     const handleGenerateImage = async () => {
-        if (!process.env.API_KEY) {
-            setAiError("API Key no configurada en el entorno.");
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyDW3_So3zeTCygPmGOS5cK5tMqYPMLcVbs'; // Fallback to hardcoded if needed for demo
+
+        if (!apiKey) {
+            setAiError("API Key no configurada. Usa VITE_GEMINI_API_KEY en .env");
             return;
         }
         if (!aiPrompt.trim()) {
@@ -1195,7 +1345,7 @@ const AdminPanel: React.FC = () => {
         setAiError(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey });
             const parts: any[] = [];
 
             // If a source image exists, add it to the parts for editing
@@ -1260,6 +1410,7 @@ const AdminPanel: React.FC = () => {
 
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [distributorFilter, setDistributorFilter] = useState<string>(''); // NEW: Admin WA List Filter
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Normalized Registrations was moved up to be available for stats.
@@ -1528,6 +1679,28 @@ const AdminPanel: React.FC = () => {
         // 2. Pending Only Filter (WA View)
         if (activeTab === 'wa_list' && showPendingOnly) {
             result = result.filter(r => !r.whatsappSent);
+        }
+
+        // 3. Distributor Filter (Admin WA View)
+        if (activeTab === 'wa_list' && distributorFilter) {
+            const distConfig = config.ticketDistributors?.find(d => d.name === distributorFilter);
+            if (distConfig && distConfig.startRange && distConfig.endRange) {
+                const start = distConfig.startRange;
+                const end = distConfig.endRange;
+                result = result.filter(reg => {
+                    // Check if ANY child is in range
+                    return reg.children.some(child => {
+                        const num = parseInt(child.inviteNumber.replace(/\D/g, '')) || 0;
+                        return num >= start && num <= end;
+                    });
+                });
+            } else {
+                // Fallback for manual string match if no range or "Others"
+                result = result.filter(reg =>
+                    (reg.ticketDistributor === distributorFilter) ||
+                    (distributorFilter === 'Otros / Sin Asignar' && !reg.ticketDistributor)
+                );
+            }
         }
 
         // 3. Tab Specific Filters (existing logic)
@@ -2142,9 +2315,18 @@ const AdminPanel: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
                             <Settings className="w-5 h-5" />
-                            <span className="hidden sm:inline">Panel: {currentUser?.role === 'verifier' ? 'Verificador' : 'Administrativo'}</span>
-                            <span className="inline sm:hidden">{currentUser?.role === 'verifier' ? 'Verificador' : 'Admin'}</span>
+                            <span className="hidden sm:inline">Panel: {currentUser?.role === 'verifier' ? 'Operador / Distribuidor' : 'Administrativo'}</span>
+                            <span className="inline sm:hidden">{currentUser?.role === 'verifier' ? 'Operador' : 'Admin'}</span>
                         </h2>
+                        {currentUser?.role === 'verifier' && (
+                            <div className="bg-blue-600 px-3 py-1 rounded-full flex items-center gap-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-blue-100 hidden sm:inline">Total Niños:</span>
+                                <span className="font-bold text-white text-sm">
+                                    {/* Calculate total children across all visible registrations */}
+                                    {registrations.reduce((acc, curr) => acc + (curr.children?.length || 0), 0)}
+                                </span>
+                            </div>
+                        )}
                         {hasChanges && (
                             <span className="bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
                                 SIN GUARDAR
@@ -2257,12 +2439,21 @@ const AdminPanel: React.FC = () => {
                                             <TabButton active={activeTab === 'system'} onClick={() => setActiveTab('system')} icon={<FolderLock size={18} />} label="Respaldos" />
                                         </div>
                                     </>
-                                ) : currentUser?.role === 'verifier' ? (
-                                    // Verifier ONLY
-                                    <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear QR" />
                                 ) : (
-                                    // WhatsApp Sender ONLY
-                                    <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<MessageSquare size={18} />} label="Envíos WhatsApp" />
+                                    // DISTRIBUTOR / VERIFIER ROLE (Unified)
+                                    // Has Access to: Scanner, WhatsApp List, Audit
+                                    <>
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">Operativo</p>
+                                            <TabButton active={activeTab === 'scanner'} onClick={() => setActiveTab('scanner')} icon={<ScanLine size={18} />} label="Escanear QR" />
+                                            <TabButton active={activeTab === 'wa_list'} onClick={() => setActiveTab('wa_list')} icon={<Send size={18} />} label="Envíos WhatsApp" />
+                                        </div>
+                                        <div className="mb-2">
+                                            <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Control</p>
+
+                                            <TabButton active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<ClipboardCheck size={18} />} label="Auditoría" />
+                                        </div>
+                                    </>
                                 )}
                             </div>
                             <button
@@ -2297,16 +2488,15 @@ const AdminPanel: React.FC = () => {
                         {/* Mobile Tabs (Horizontal) */}
                         {/* Mobile Tabs (Horizontal) - OPTIMIZED */}
                         <div className="md:hidden w-full border-b border-slate-200 bg-white flex-shrink-0 grid grid-cols-4">
-                            {currentUser?.role === 'admin' && (
+                            {/* 1. Dashboard (Admin) OR Scanner (Distributor) */}
+                            {currentUser?.role === 'admin' ? (
                                 <TabButtonMobile
                                     active={!mobileMenuOpen && activeTab === 'stats'}
                                     onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }}
                                     icon={<BarChart3 size={20} />}
                                     label="Tablero"
                                 />
-                            )}
-
-                            {(currentUser?.role === 'admin' || currentUser?.role === 'verifier') && (
+                            ) : (
                                 <TabButtonMobile
                                     active={!mobileMenuOpen && activeTab === 'scanner'}
                                     onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
@@ -2315,20 +2505,37 @@ const AdminPanel: React.FC = () => {
                                 />
                             )}
 
-                            {/* 'wa_list' for sender, 'data' for admin */}
-                            {(currentUser?.role === 'admin' || currentUser?.role === 'whatsapp_sender') && (
+                            {/* 2. Scanner (Admin) OR WhatsApp (Distributor) */}
+                            {currentUser?.role === 'admin' ? (
                                 <TabButtonMobile
-                                    active={!mobileMenuOpen && (activeTab === 'data' || activeTab === 'wa_list')}
-                                    onClick={() => {
-                                        if (currentUser?.role === 'whatsapp_sender') {
-                                            setActiveTab('wa_list');
-                                        } else {
-                                            setActiveTab('data');
-                                        }
-                                        setMobileMenuOpen(false);
-                                    }}
-                                    icon={currentUser?.role === 'whatsapp_sender' ? <Send size={20} /> : <Database size={20} />}
-                                    label={currentUser?.role === 'whatsapp_sender' ? "Envíos" : "Registros"}
+                                    active={!mobileMenuOpen && activeTab === 'scanner'}
+                                    onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
+                                    icon={<ScanLine size={20} />}
+                                    label="Escanear"
+                                />
+                            ) : (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && activeTab === 'wa_list'}
+                                    onClick={() => { setActiveTab('wa_list'); setMobileMenuOpen(false); }}
+                                    icon={<Send size={20} />}
+                                    label="Envíos"
+                                />
+                            )}
+
+                            {/* 3. Database (Admin) OR Audit (Distributor) */}
+                            {currentUser?.role === 'admin' ? (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && activeTab === 'data'}
+                                    onClick={() => { setActiveTab('data'); setMobileMenuOpen(false); }}
+                                    icon={<Database size={20} />}
+                                    label="Registros"
+                                />
+                            ) : (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && activeTab === 'audit'}
+                                    onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }}
+                                    icon={<ClipboardCheck size={20} />}
+                                    label="Auditoría"
                                 />
                             )}
 
@@ -2891,6 +3098,108 @@ const AdminPanel: React.FC = () => {
                                         </p>
                                     </div>
 
+                                )}
+
+                                {activeTab === 'wa_list' && (
+                                    <div className="space-y-6 animate-fade-in pb-10">
+                                        <SectionHeader title="Envíos de WhatsApp" description="Envía las invitaciones digitales a los beneficiarios." />
+
+                                        {/* Status Bar */}
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                                            <div className="flex gap-4 text-sm">
+                                                <div className="flex flex-col">
+                                                    <span className="text-slate-500 text-xs uppercase font-bold">Total Niños</span>
+                                                    <span className="font-bold text-xl text-slate-800">
+                                                        {normalizedRegistrations.reduce((acc, r) => acc + (r.children?.length || 0), 0)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-green-600 text-xs uppercase font-bold">Enviados (Niños)</span>
+                                                    <span className="font-bold text-xl text-green-700">
+                                                        {normalizedRegistrations.filter(r => r.whatsappSent).reduce((acc, r) => acc + (r.children?.length || 0), 0)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-orange-500 text-xs uppercase font-bold">Pendientes (Niños)</span>
+                                                    <span className="font-bold text-xl text-orange-600">
+                                                        {normalizedRegistrations.filter(r => !r.whatsappSent).reduce((acc, r) => acc + (r.children?.length || 0), 0)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="w-full md:w-auto">
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Buscar por nombre o teléfono..."
+                                                        value={searchTerm}
+                                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                                        className="w-full md:w-64 pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* List */}
+                                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-sm text-left">
+                                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                                        <tr>
+                                                            <th className="px-6 py-3">Nombre</th>
+                                                            <th className="px-6 py-3">Teléfono</th>
+                                                            <th className="px-6 py-3 text-center">Niños</th>
+                                                            <th className="px-6 py-3 text-center">Estado</th>
+                                                            <th className="px-6 py-3 text-right">Acción</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {filteredRegistrations.map(reg => (
+                                                            <tr key={reg.id} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="px-6 py-4 font-medium text-slate-800">{reg.fullName}</td>
+                                                                <td className="px-6 py-4 font-mono text-slate-500">{reg.whatsapp}</td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                                                        {reg.children.length} {reg.children.length === 1 ? 'Niño' : 'Niños'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    {reg.whatsappSent ? (
+                                                                        <span className="inline-flex items-center gap-1 text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-full border border-green-200">
+                                                                            <Check size={12} /> Enviado
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-full border border-orange-200">
+                                                                            <Clock size={12} /> Pendiente
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <button
+                                                                        onClick={() => handleWhatsApp(reg)}
+                                                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors ${reg.whatsappSent
+                                                                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                                            : 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow-md'
+                                                                            }`}
+                                                                    >
+                                                                        <Send size={14} />
+                                                                        {reg.whatsappSent ? 'Reenviar' : 'Enviar'}
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        {filteredRegistrations.length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500 italic">
+                                                                    No se encontraron destinatarios.
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {activeTab === 'hero' && (
@@ -4147,6 +4456,21 @@ const AdminPanel: React.FC = () => {
                                                         onChange={(e) => setSearchTerm(e.target.value)}
                                                         className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full"
                                                     />
+
+                                                    {currentUser?.role === 'admin' && (
+                                                        <select
+                                                            value={distributorFilter}
+                                                            onChange={(e) => setDistributorFilter(e.target.value)}
+                                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm min-w-[200px]"
+                                                        >
+                                                            <option value="">Todos los Distribuidores</option>
+                                                            {config.ticketDistributors?.map(d => (
+                                                                <option key={d.name} value={d.name}>{d.name}</option>
+                                                            ))}
+                                                            <option value="Otros / Sin Asignar">Otros / Sin Asignar</option>
+                                                        </select>
+                                                    )}
+
                                                     <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
                                                         <input
                                                             type="checkbox"
@@ -4263,7 +4587,7 @@ const AdminPanel: React.FC = () => {
 
                                 {
                                     activeTab === 'users' && currentUser?.role === 'admin' && (
-                                        <UsersManagementTab />
+                                        <UsersManagementTab registrations={registrations} />
                                     )
                                 }
                                 {

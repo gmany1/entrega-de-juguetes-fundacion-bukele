@@ -249,7 +249,7 @@ const UsersManagementTab = () => {
                         <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
                         <select
                             value={formData.role}
-                            onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'verifier' })}
+                            onChange={e => setFormData({ ...formData, role: e.target.value as SystemUser['role'] })}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                         >
                             <option value="verifier">Verificador</option>
@@ -1596,12 +1596,28 @@ const AdminPanel: React.FC = () => {
     };
 
     const handleWhatsApp = async (reg: Registration) => {
-        // Optimistic Update
-        const updatedRegs = registrations.map(r => r.id === reg.id ? { ...r, whatsappSent: true } : r);
-        setRegistrations(updatedRegs);
+        const isLegacyGroup = reg.id.startsWith('legacy_group_');
 
-        // Background Save
-        updateRegistration(reg.id, { whatsappSent: true }).catch(err => console.error("Error saving WA status", err));
+        // Optimistic Update
+        let updatedRegs = [...registrations];
+
+        if (isLegacyGroup) {
+            // For legacy groups, find all original registrations (children of the group) and update them in the raw list
+            const childIds = new Set(reg.children.map(c => c.id));
+            updatedRegs = updatedRegs.map(r => childIds.has(r.id) ? { ...r, whatsappSent: true } : r);
+
+            // Background Save for each child (individual legacy record)
+            reg.children.forEach(child => {
+                updateRegistration(child.id, { whatsappSent: true }).catch(err => console.error("Error saving WA status (legacy)", err));
+            });
+        } else {
+            // Standard Case
+            updatedRegs = updatedRegs.map(r => r.id === reg.id ? { ...r, whatsappSent: true } : r);
+            // Background Save
+            updateRegistration(reg.id, { whatsappSent: true }).catch(err => console.error("Error saving WA status", err));
+        }
+
+        setRegistrations(updatedRegs);
 
         const name = reg.parentName || reg.fullName || "Beneficiario";
         let message = `Hola ${name}, aquí tienes tus invitaciones para la entrega de juguetes:\n\n`;
@@ -2221,7 +2237,7 @@ const AdminPanel: React.FC = () => {
                         {/* Mobile Tabs (Horizontal) */}
                         {/* Mobile Tabs (Horizontal) - OPTIMIZED */}
                         <div className="md:hidden w-full border-b border-slate-200 bg-white flex-shrink-0 grid grid-cols-4">
-                            {currentUser?.role !== 'verifier' && (
+                            {currentUser?.role === 'admin' && (
                                 <TabButtonMobile
                                     active={!mobileMenuOpen && activeTab === 'stats'}
                                     onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }}
@@ -2230,19 +2246,29 @@ const AdminPanel: React.FC = () => {
                                 />
                             )}
 
-                            <TabButtonMobile
-                                active={!mobileMenuOpen && activeTab === 'scanner'}
-                                onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
-                                icon={<ScanLine size={20} />}
-                                label="Escanear"
-                            />
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'verifier') && (
+                                <TabButtonMobile
+                                    active={!mobileMenuOpen && activeTab === 'scanner'}
+                                    onClick={() => { setActiveTab('scanner'); setMobileMenuOpen(false); }}
+                                    icon={<ScanLine size={20} />}
+                                    label="Escanear"
+                                />
+                            )}
 
-                            {currentUser?.role !== 'verifier' && (
+                            {/* 'wa_list' for sender, 'data' for admin */}
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'whatsapp_sender') && (
                                 <TabButtonMobile
                                     active={!mobileMenuOpen && (activeTab === 'data' || activeTab === 'wa_list')}
-                                    onClick={() => { setActiveTab('data'); setMobileMenuOpen(false); }}
-                                    icon={<Database size={20} />}
-                                    label="Registros"
+                                    onClick={() => {
+                                        if (currentUser?.role === 'whatsapp_sender') {
+                                            setActiveTab('wa_list');
+                                        } else {
+                                            setActiveTab('data');
+                                        }
+                                        setMobileMenuOpen(false);
+                                    }}
+                                    icon={currentUser?.role === 'whatsapp_sender' ? <Send size={20} /> : <Database size={20} />}
+                                    label={currentUser?.role === 'whatsapp_sender' ? "Envíos" : "Registros"}
                                 />
                             )}
 
@@ -2267,28 +2293,29 @@ const AdminPanel: React.FC = () => {
                                         </div>
 
                                         {/* Operaciones */}
-                                        {currentUser?.role !== 'verifier' && (
-                                            <div>
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operaciones</h4>
-                                                <div className="grid grid-cols-2 gap-3">
+                                        {/* Operaciones */}
+                                        <div className="mb-4">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operaciones</h4>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {(currentUser?.role === 'admin' || currentUser?.role === 'whatsapp_sender') && (
                                                     <button onClick={() => { setActiveTab('wa_list'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
                                                         <div className="p-3 bg-green-50 rounded-full text-green-600">
                                                             <Send size={24} />
                                                         </div>
                                                         <span className="font-bold text-slate-700 text-sm">Envíos WA</span>
                                                     </button>
-                                                    <button onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                                                        <div className="p-3 bg-blue-50 rounded-full text-blue-600">
-                                                            <ClipboardCheck size={24} />
-                                                        </div>
-                                                        <span className="font-bold text-slate-700 text-sm">Auditoría</span>
-                                                    </button>
-                                                </div>
+                                                )}
+                                                <button onClick={() => { setActiveTab('audit'); setMobileMenuOpen(false); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                                                    <div className="p-3 bg-blue-50 rounded-full text-blue-600">
+                                                        <ClipboardCheck size={24} />
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 text-sm">Auditoría</span>
+                                                </button>
                                             </div>
-                                        )}
+                                        </div>
 
                                         {/* Sistema */}
-                                        {currentUser?.role !== 'verifier' && (
+                                        {currentUser?.role === 'admin' && (
                                             <div>
                                                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sistema</h4>
                                                 <div className="grid grid-cols-2 gap-3">
@@ -2309,7 +2336,7 @@ const AdminPanel: React.FC = () => {
                                         )}
 
                                         {/* Configuración */}
-                                        {currentUser?.role !== 'verifier' && (
+                                        {currentUser?.role === 'admin' && (
                                             <div>
                                                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Configuración</h4>
                                                 <div className="grid grid-cols-2 gap-3">
@@ -4035,20 +4062,36 @@ const AdminPanel: React.FC = () => {
                                             </div>
 
                                             {/* Stats Cards */}
-                                            <div className="grid grid-cols-3 gap-4">
-                                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
-                                                    <div className="text-3xl font-bold text-slate-800">{registrations.length}</div>
-                                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
-                                                </div>
-                                                <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col items-center">
-                                                    <div className="text-3xl font-bold text-green-600">{registrations.filter(r => r.whatsappSent).length}</div>
-                                                    <div className="text-xs font-bold text-green-600 uppercase tracking-wide">Enviados</div>
-                                                </div>
-                                                <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col items-center">
-                                                    <div className="text-3xl font-bold text-orange-600">{registrations.filter(r => !r.whatsappSent).length}</div>
-                                                    <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">Pendientes</div>
-                                                </div>
-                                            </div>
+                                            {(() => {
+                                                // Calculate Ticket-based Stats using Normalized Data
+                                                const ticketStats = normalizedRegistrations.reduce((acc, r) => {
+                                                    const count = r.children?.length || 0;
+                                                    acc.total += count;
+                                                    if (r.whatsappSent) {
+                                                        acc.sent += count;
+                                                    } else {
+                                                        acc.pending += count;
+                                                    }
+                                                    return acc;
+                                                }, { total: 0, sent: 0, pending: 0 });
+
+                                                return (
+                                                    <div className="grid grid-cols-3 gap-4">
+                                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                                                            <div className="text-3xl font-bold text-slate-800">{ticketStats.total}</div>
+                                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Tickets</div>
+                                                        </div>
+                                                        <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col items-center">
+                                                            <div className="text-3xl font-bold text-green-600">{ticketStats.sent}</div>
+                                                            <div className="text-xs font-bold text-green-600 uppercase tracking-wide">Enviados</div>
+                                                        </div>
+                                                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col items-center">
+                                                            <div className="text-3xl font-bold text-orange-600">{ticketStats.pending}</div>
+                                                            <div className="text-xs font-bold text-orange-600 uppercase tracking-wide">Pendientes</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                                                 <div className="p-4 border-b border-slate-100 flex gap-4 items-center">

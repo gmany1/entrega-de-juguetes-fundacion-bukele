@@ -432,10 +432,16 @@ export const getSystemUsers = async (): Promise<SystemUser[]> => {
 export const saveSystemUser = async (user: Omit<SystemUser, 'id'> & { id?: string }): Promise<StorageResult> => {
   try {
     // Check for duplicate username
-    if (!user.id) { // Only on create
-      const q = query(collection(db, USERS_COLLECTION), where("username", "==", user.username.trim()));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
+    // Check for duplicate username (Create OR Edit)
+    const q = query(collection(db, USERS_COLLECTION), where("username", "==", user.username.trim()));
+    const snap = await getDocs(q);
+
+    if (!snap.empty) {
+      const match = snap.docs[0];
+      // Conflict if:
+      // 1. Creating new user (no ID provided)
+      // 2. Editing user (ID provided) BUT the found match has a different ID
+      if (!user.id || match.id !== user.id) {
         return { success: false, message: "El nombre de usuario ya existe." };
       }
     }

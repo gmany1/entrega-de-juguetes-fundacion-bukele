@@ -5,6 +5,7 @@ import { waitForAuth, auth } from '../services/firebaseConfig';
 import { Loader2, Lock, ArrowRight } from 'lucide-react';
 import { AdminProvider } from '../contexts/AdminContext';
 import AdminLayout from './admin/AdminLayout';
+import SaaSLogin from './SaaSLogin';
 
 const AdminPanel: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<SystemUser | null>(null);
@@ -86,60 +87,15 @@ const AdminPanel: React.FC = () => {
 
     if (!currentUser) {
         return (
-            <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
-                    <div className="text-center mb-8">
-                        <div className="bg-[#1e293b] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg border border-[#c5a059]">
-                            <Lock className="text-[#c5a059] w-8 h-8" />
-                        </div>
-                        <h2 className="text-2xl font-serif text-slate-800">Wedding Planner</h2>
-                        <p className="text-slate-500 text-sm">Acceso Administrativo</p>
-                    </div>
-
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div>
-                            <label className="block text-xs uppercase font-bold text-slate-500 mb-2 tracking-wider">Usuario</label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-3 rounded-sm border border-slate-300 focus:border-[#c5a059] outline-none transition-all"
-                                placeholder="Usuario"
-                                autoFocus
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs uppercase font-bold text-slate-500 mb-2 tracking-wider">Contraseña</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-4 py-3 rounded-sm border border-slate-300 focus:border-[#c5a059] outline-none transition-all"
-                                placeholder="••••••••"
-                            />
-                        </div>
-
-                        {loginError && (
-                            <div className="p-3 bg-red-50 text-red-600 text-sm border-l-2 border-red-500 font-medium">
-                                {loginError}
-                            </div>
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={isLoggingIn}
-                            className="w-full bg-[#1e293b] text-white font-bold py-3.5 rounded-sm hover:bg-black transition-all transform flex items-center justify-center gap-2 shadow-lg uppercase tracking-widest text-sm"
-                        >
-                            {isLoggingIn ? <Loader2 className="animate-spin" /> : <>Ingresar <ArrowRight size={16} /></>}
-                        </button>
-                    </form>
-
-                    <div className="mt-8 text-center text-[#c5a059]">
-                        <p className="text-[10px] uppercase tracking-widest">Wedding Manager System v1.0</p>
-                    </div>
-                </div>
-            </div>
+            <SaaSLogin
+                onLogin={handleLogin}
+                username={username}
+                setUsername={setUsername}
+                password={password}
+                setPassword={setPassword}
+                isLoading={isLoggingIn}
+                error={loginError}
+            />
         );
     }
 

@@ -35,6 +35,7 @@ import VendorPortal from './src/pages/portal/VendorPortal';
 
 import { waitForAuth, auth } from './services/firebaseConfig';
 import { Loader2 } from 'lucide-react';
+import { AdminProvider } from './contexts/AdminContext';
 
 const App: React.FC = () => {
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -77,7 +78,9 @@ const App: React.FC = () => {
         {/* Admin / Planner Routes */}
         <Route path="/admin" element={
           <RequireAuth>
-            <AdminLayout user={currentUser} onLogout={() => auth.signOut()} />
+            <AdminProvider>
+              <AdminLayout user={currentUser} onLogout={() => auth.signOut()} />
+            </AdminProvider>
           </RequireAuth>
         }>
           <Route index element={<DashboardHome />} />

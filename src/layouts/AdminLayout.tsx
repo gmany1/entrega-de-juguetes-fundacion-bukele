@@ -127,7 +127,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
                     </button>
                 )
             }
-        </div >
+        </div>
     );
 };
 

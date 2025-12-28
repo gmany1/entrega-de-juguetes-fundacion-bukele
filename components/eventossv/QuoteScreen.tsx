@@ -1,28 +1,59 @@
 import React, { useState } from 'react';
-import { Plus, CheckCircle2, ShieldCheck, FileText } from 'lucide-react';
+import { Plus, CheckCircle2, ShieldCheck, FileText, Trash2 } from 'lucide-react';
+import DTEGenerator from './DTEGenerator';
 
 const QuoteScreen: React.FC = () => {
+    const [showGenerator, setShowGenerator] = useState(false);
     const [converted, setConverted] = useState(false);
 
-    // Mock Data
-    const items = [
+    // State for dynamic items
+    const [items, setItems] = useState([
         { name: 'Catering Premium (100 pax)', price: 500.00 },
         { name: 'Sistema de Audio Bose L1', price: 300.00 },
-    ];
+    ]);
 
     const subtotal = items.reduce((acc, item) => acc + item.price, 0);
     const iva = subtotal * 0.13;
     const total = subtotal + iva;
 
     const handleConvert = () => {
-        // Simulate API call
-        if (!converted) {
-            setConverted(true);
+        setShowGenerator(true);
+    };
+
+    const handleDteSuccess = () => {
+        setConverted(true);
+        setShowGenerator(false);
+    };
+
+    const handleAddItem = () => {
+        // Simple implementation for rapid prototyping
+        const name = prompt("Nombre del servicio:");
+        if (!name) return;
+        const priceStr = prompt("Precio ($):");
+        if (!priceStr) return;
+        const price = parseFloat(priceStr);
+        if (isNaN(price)) return;
+
+        setItems([...items, { name, price }]);
+    };
+
+    const handleDeleteItem = (index: number) => {
+        if (confirm('¿Eliminar este servicio?')) {
+            const newItems = [...items];
+            newItems.splice(index, 1);
+            setItems(newItems);
         }
     };
 
     return (
         <div className="max-w-md mx-auto relative min-h-[80vh]">
+            {showGenerator && (
+                <DTEGenerator
+                    onClose={() => setShowGenerator(false)}
+                    onSuccess={handleDteSuccess}
+                />
+            )}
+
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Nueva Cotización</h1>
                 <span className="text-xs font-mono text-slate-400">#COT-2025-001</span>
@@ -40,14 +71,31 @@ const QuoteScreen: React.FC = () => {
                 <div className="p-6 space-y-4">
                     <h3 className="font-bold text-sm text-slate-400 uppercase tracking-wider">Servicios</h3>
                     {items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="font-medium text-slate-700">{item.name}</span>
-                            <span className="font-mono font-bold text-slate-900">${item.price.toFixed(2)}</span>
+                        <div key={idx} className="flex justify-between items-center text-sm group">
+                            <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-700">{item.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="font-mono font-bold text-slate-900">${item.price.toFixed(2)}</span>
+                                {!converted && (
+                                    <button
+                                        onClick={() => handleDeleteItem(idx)}
+                                        className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
-                    <button className="w-full py-3 border border-dashed border-slate-300 rounded-xl text-slate-400 text-sm font-medium hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-colors flex items-center justify-center gap-2">
-                        <Plus size={16} /> Agregar Servicio
-                    </button>
+                    {!converted && (
+                        <button
+                            onClick={handleAddItem}
+                            className="w-full py-3 border border-dashed border-slate-300 rounded-xl text-slate-400 text-sm font-medium hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Plus size={16} /> Agregar Servicio
+                        </button>
+                    )}
                 </div>
 
                 {/* Footer Totals */}
@@ -71,8 +119,9 @@ const QuoteScreen: React.FC = () => {
                     <div className="absolute inset-x-0 bottom-36 mx-4 p-4 bg-white/90 backdrop-blur-sm border border-green-100 shadow-xl rounded-2xl text-center animate-fade-in-up z-10 flex flex-col items-center gap-2">
                         <CheckCircle2 size={48} className="text-green-500" />
                         <div>
-                            <h3 className="font-bold text-green-700 text-lg">JSON Validado</h3>
-                            <p className="text-xs text-green-600">Código de Generación Asignado por Hacienda</p>
+                            <h3 className="font-bold text-green-700 text-lg">DTE Generado</h3>
+                            <p className="text-xs text-green-600">Firmado y Enviado a Hacienda</p>
+                            <p className="text-[10px] text-slate-400 font-mono mt-1">M001-P001-000000045</p>
                         </div>
                     </div>
                 )}

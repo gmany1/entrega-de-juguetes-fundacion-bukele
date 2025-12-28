@@ -1,20 +1,62 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, FileText, Package, Landmark, Menu, X, Plus } from 'lucide-react';
+import { LayoutDashboard, FileText, Package, Landmark, Menu, X, Plus, Users, Calendar, ScanLine, LogOut } from 'lucide-react';
 import DashboardHome from './DashboardHome';
 import QuoteScreen from './QuoteScreen';
 import InventoryScreen from './InventoryScreen';
 import FiscalComplianceScreen from './FiscalComplianceScreen';
+import CRMPipeline from './CRMPipeline';
+import EventHub from './EventHub';
+import RegistrationsTab from '../admin/RegistrationsTab';
+import ScannerTab from '../admin/ScannerTab';
+import { SystemUser } from '../../types';
 
-const EventosLayout: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'quotes' | 'inventory' | 'fiscal'>('dashboard');
+interface EventosLayoutProps {
+    user?: SystemUser;
+    onLogout?: () => void;
+}
+
+const EventosLayout: React.FC<EventosLayoutProps> = ({ user, onLogout }) => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'quotes' | 'inventory' | 'fiscal' | 'eventhub' | 'registrations' | 'scanner'>('dashboard');
     const [menuOpen, setMenuOpen] = useState(false);
 
+    // Role Configuration
+    const userRole = user?.role || 'admin'; // Default to admin for dev safety, or handle null
+
+    const MENU_ITEMS = [
+        { id: 'dashboard', label: 'Salud del Negocio', icon: <LayoutDashboard size={20} />, allowed: ['admin'] },
+        { id: 'eventhub', label: 'Hub de Evento', icon: <Calendar size={20} />, allowed: ['admin', 'planner'] },
+        { id: 'registrations', label: 'Invitados', icon: <Users size={20} />, allowed: ['admin', 'planner'] },
+        { id: 'scanner', label: 'Check-in / Escáner', icon: <ScanLine size={20} />, allowed: ['admin', 'planner', 'scanner'] },
+        { id: 'crm', label: 'Ventas (CRM)', icon: <Users size={20} />, allowed: ['admin', 'planner'] },
+        { id: 'quotes', label: 'Cotizaciones', icon: <FileText size={20} />, allowed: ['admin', 'planner'] },
+        { id: 'inventory', label: 'Inventario', icon: <Package size={20} />, allowed: ['admin', 'planner'] },
+        { id: 'fiscal', label: 'Fiscalidad', icon: <Landmark size={20} />, allowed: ['admin'] },
+    ];
+
+    const allowedItems = MENU_ITEMS.filter(item => item.allowed.includes(userRole));
+
+    // Redirect if current tab is not allowed
+    // Implementation note: This should ideally be a useEffect, but for simple render logic:
+    if (!allowedItems.find(i => i.id === activeTab)) {
+        // If current tab is forbidden, switch to the first allowed tab
+        if (allowedItems.length > 0) {
+            setActiveTab(allowedItems[0].id as any);
+        }
+    }
+
     const renderContent = () => {
+        // Basic safety check in render too
+        if (!allowedItems.find(i => i.id === activeTab)) return null;
+
         switch (activeTab) {
             case 'dashboard': return <DashboardHome onChangeTab={setActiveTab} />;
+            case 'crm': return <CRMPipeline />;
+            case 'eventhub': return <EventHub />;
             case 'quotes': return <QuoteScreen />;
             case 'inventory': return <InventoryScreen />;
             case 'fiscal': return <FiscalComplianceScreen />;
+            case 'registrations': return <RegistrationsTab />;
+            case 'scanner': return <ScannerTab />;
             default: return <DashboardHome onChangeTab={setActiveTab} />;
         }
     };
@@ -30,7 +72,7 @@ const EventosLayout: React.FC = () => {
                     <div className="font-serif font-bold text-lg tracking-tight text-[#0A1929]">EventosSV</div>
                 </div>
                 <div className="w-9 h-9 bg-gradient-to-br from-[#D4AF37] to-[#B08D4B] rounded-full shadow-md border-2 border-white flex items-center justify-center text-xs font-bold text-white">
-                    JD
+                    {user?.name?.charAt(0) || 'JD'}
                 </div>
             </header>
 
@@ -47,43 +89,33 @@ const EventosLayout: React.FC = () => {
                 <div className="p-6 pt-8 lg:pt-6">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Menú Principal</div>
                     <div className="space-y-2">
-                        <NavButton
-                            active={activeTab === 'dashboard'}
-                            icon={<LayoutDashboard size={20} />}
-                            label="Salud del Negocio"
-                            onClick={() => { setActiveTab('dashboard'); setMenuOpen(false); }}
-                        />
-                        <NavButton
-                            active={activeTab === 'quotes'}
-                            icon={<FileText size={20} />}
-                            label="Cotizaciones"
-                            onClick={() => { setActiveTab('quotes'); setMenuOpen(false); }}
-                        />
-                        <NavButton
-                            active={activeTab === 'inventory'}
-                            icon={<Package size={20} />}
-                            label="Inventario"
-                            onClick={() => { setActiveTab('inventory'); setMenuOpen(false); }}
-                        />
-                        <NavButton
-                            active={activeTab === 'fiscal'}
-                            icon={<Landmark size={20} />}
-                            label="Fiscalidad"
-                            onClick={() => { setActiveTab('fiscal'); setMenuOpen(false); }}
-                        />
+                        {allowedItems.map(item => (
+                            <NavButton
+                                key={item.id}
+                                active={activeTab === item.id}
+                                icon={item.icon}
+                                label={item.label}
+                                onClick={() => { setActiveTab(item.id as any); setMenuOpen(false); }}
+                            />
+                        ))}
                     </div>
                 </div>
 
                 <div className="mt-auto p-6 bg-[#07111d]">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#F3E5AB] flex items-center justify-center text-[#0A1929] font-bold">
-                            JD
+                            {user?.name?.charAt(0) || 'JD'}
                         </div>
                         <div>
-                            <div className="font-bold text-sm text-white">Juan Director</div>
-                            <div className="text-xs text-slate-400">Admin. General</div>
+                            <div className="font-bold text-sm text-white">{user?.name || 'Juan Director'}</div>
+                            <div className="text-xs text-slate-400 capitalize">{user?.role || 'Admin. General'}</div>
                         </div>
                     </div>
+                    {onLogout && (
+                        <button onClick={onLogout} className="w-full flex items-center gap-2 text-red-400 hover:text-red-300 hover:bg-white/5 p-2 rounded-lg text-xs font-medium transition-colors">
+                            <LogOut size={14} /> Cerrar Sesión
+                        </button>
+                    )}
                 </div>
             </aside>
 
@@ -96,7 +128,7 @@ const EventosLayout: React.FC = () => {
             {
                 activeTab === 'dashboard' && (
                     <button
-                        onClick={() => setActiveTab('quotes')}
+                        onClick={() => setActiveTab('quotes' as any)}
                         className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-[#D4AF37] to-[#B08D4B] text-white rounded-full shadow-[0_4px_20px_-4px_rgba(212,175,55,0.5)] flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50"
                     >
                         <Plus size={32} />

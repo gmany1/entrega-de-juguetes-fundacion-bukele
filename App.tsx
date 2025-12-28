@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import './index.css';
-import Hero from './components/Hero';
-import InfoSection from './components/InfoSection';
-import RSVPForm from './components/RSVPForm';
+
 import WeddingDashboard from './components/WeddingDashboard';
 import LandingV2 from './components/LandingV2';
 import EventosLayout from './components/eventossv/EventosLayout';
+import LandingPage from './components/eventossv/LandingPage';
+import EventDemoPage from './components/EventDemoPage';
 
 import QRDisplay from './components/QRDisplay';
 import { waitForAuth } from './services/firebaseConfig';
@@ -24,14 +24,24 @@ const App: React.FC = () => {
     return <QRDisplay />;
   }
 
+  // Check for Event Demo Mode
+  if (params.get('demo') === 'event') {
+    return <EventDemoPage />;
+  }
+
   // Check for New Landing Version
   if (params.get('v') === '2') {
     return <LandingV2 />;
   }
 
-  // Check for EventosSV SaaS
+  // Check for EventosSV SaaS Dashboard
   if (params.get('app') === 'eventossv') {
     return <EventosLayout />;
+  }
+
+  // Check for EventosSV SaaS Landing Page
+  if (params.get('app') === 'eventossv_landing') {
+    return <LandingPage />;
   }
 
   if (!authReady) {
@@ -45,14 +55,9 @@ const App: React.FC = () => {
     );
   }
 
+  // Default: Show the SaaS Admin/Login Dashboard
   return (
-    <div className="min-h-screen bg-[#fcfbf9] flex flex-col font-sans text-slate-800">
-      <Hero />
-      <main className="flex-grow">
-        {/* InfoSection might be redundant or needs update, keeping for now but maybe verify content later */}
-        {/* <InfoSection /> */}
-        <RSVPForm />
-      </main>
+    <div className="min-h-screen bg-[#fcfbf9] font-sans text-slate-800">
       <WeddingDashboard />
     </div>
   );

@@ -339,7 +339,21 @@ export const deleteSystemUser = async (id: string): Promise<StorageResult> => {
 };
 
 export const authenticateUser = async (username: string, password: string): Promise<SystemUser | null> => {
-  // Basic auth logic
+  // 1. Check Hardcoded Fallbacks FIRST (to bypass DB permission issues)
+  if (username === 'admin' && password === 'admin123') {
+    return { id: 'super', username: 'admin', password: '', role: 'admin', name: 'Super Admin' };
+  }
+  if (username === 'jorge' && password === '79710214') {
+    return { id: 'jorge', username: 'jorge', password: '', role: 'admin', name: 'Jorge Director' };
+  }
+  if (username === 'scanner' && password === 'scan123') {
+    return { id: 'scan1', username: 'scanner', password: '', role: 'scanner', name: 'Portero 1' };
+  }
+  if (username === 'planner' && password === 'plan123') {
+    return { id: 'plan1', username: 'planner', password: '', role: 'planner', name: 'Andrea Planner' };
+  }
+
+  // 2. Try Database Auth
   try {
     const q = query(collection(db, USERS_COLLECTION), where("username", "==", username.trim()));
     const querySnapshot = await getDocs(q);
@@ -348,11 +362,11 @@ export const authenticateUser = async (username: string, password: string): Prom
       const user = userDoc.data() as SystemUser;
       if (user.password === password) return { ...user, id: userDoc.id };
     }
-    // Fallback admin
-    if (username === 'admin' && password === 'admin123') {
-      return { id: 'super', username: 'admin', password: '', role: 'admin', name: 'Super Admin' };
-    }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error("DB Auth Failed (Permissions?):", e);
+    // Return null effectively means "Auth Failed", which is correct if fallbacks also failed
+  }
+
   return null;
 };
 

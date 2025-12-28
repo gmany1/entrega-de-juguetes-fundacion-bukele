@@ -4,7 +4,7 @@ import { authenticateUser } from '../services/storageService';
 import { waitForAuth, auth } from '../services/firebaseConfig';
 import { Loader2, Lock, ArrowRight } from 'lucide-react';
 import { AdminProvider } from '../contexts/AdminContext';
-import AdminLayout from './admin/AdminLayout';
+import EventosLayout from './eventossv/EventosLayout';
 import SaaSLogin from './SaaSLogin';
 
 const AdminPanel: React.FC = () => {
@@ -101,7 +101,7 @@ const AdminPanel: React.FC = () => {
 
     return (
         <AdminProvider>
-            <AdminLayout user={currentUser} onLogout={handleLogout} />
+            <EventosLayout user={currentUser} onLogout={handleLogout} />
         </AdminProvider>
     );
 };

@@ -152,14 +152,78 @@ const SaaSLogin: React.FC<SaaSLoginProps> = ({
                             </div>
                         </div>
 
-                        <p className="font-bold text-[#0A1929] mb-2 uppercase tracking-wide pt-2 border-t border-slate-200">🔗 Quick Links (Public)</p>
-                        <ul className="space-y-1">
-                            <li><a href="/boda/demo-boda-123" target="_blank" className="text-blue-600 hover:underline">Wedding Site (Boda)</a></li>
-                            <li><a href="/boda/demo-boda-123/rsvp" target="_blank" className="text-blue-600 hover:underline">RSVP Inv. (Code: BODA-123)</a></li>
-                            <li><a href="/scanner" target="_blank" className="text-blue-600 hover:underline">Scanner App</a></li>
-                            <li><a href="/portal/1" target="_blank" className="text-blue-600 hover:underline">Vendor: Catering (#1)</a></li>
-                            <li><a href="/portal/3" target="_blank" className="text-blue-600 hover:underline">Vendor: DJ (#3)</a></li>
-                        </ul>
+                        <p className="font-bold text-[#0A1929] mb-3 uppercase tracking-wide pt-4 border-t border-slate-200">🚀 Guía de Demo Completa</p>
+
+                        <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+
+                            {/* Planner */}
+                            <div className="group">
+                                <a href="/admin" target="_blank" className="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                                    Panel de la Planner (Hub Central) <ArrowRight size={12} />
+                                </a>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <strong>Verifica:</strong> Dashboard en vivo, CRM y Gestión de Usuarios.
+                                    <br />Login: <code className="bg-white border px-1 rounded">admin</code> / <code className="bg-white border px-1 rounded">admin123</code>
+                                </p>
+                            </div>
+
+                            {/* Config */}
+                            <div className="group">
+                                <a href="/admin/config" target="_blank" className="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                                    Portal de la Pareja (Configuración) <ArrowRight size={12} />
+                                </a>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <strong>Verifica:</strong> Ajustes del evento y carga de lista de invitados.
+                                </p>
+                            </div>
+
+                            {/* Wedding Site */}
+                            <div className="group">
+                                <a href="/boda/demo-boda-123" target="_blank" className="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                                    Sitio Web de la Boda (Público) <ArrowRight size={12} />
+                                </a>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <strong>Verifica:</strong> Historia, cuenta regresiva y botón RSVP.
+                                </p>
+                            </div>
+
+                            {/* RSVP */}
+                            <div className="group">
+                                <a href="/boda/demo-boda-123/rsvp" target="_blank" className="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                                    Confirmación RSVP (Invitado) <ArrowRight size={12} />
+                                </a>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <strong>Prueba:</strong> Código <code className="bg-white border px-1 rounded">BODA-123</code>. Pide canción, menú veggie y mensaje.
+                                </p>
+                            </div>
+
+                            {/* Scanner */}
+                            <div className="group">
+                                <a href="/scanner" target="_blank" className="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1">
+                                    Scanner App (Logística/Entrada) <ArrowRight size={12} />
+                                </a>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <strong>Prueba:</strong> Sync offline y check-in. Login: <code className="bg-white border px-1 rounded">scanner</code> / <code className="bg-white border px-1 rounded">scan123</code>
+                                </p>
+                            </div>
+
+                            {/* Vendors */}
+                            <div>
+                                <p className="font-bold text-slate-800 mb-1">Portal de Proveedores:</p>
+                                <ul className="pl-2 space-y-2 border-l-2 border-slate-200">
+                                    <li>
+                                        <a href="/portal/1" target="_blank" className="text-blue-700 font-bold hover:underline text-[11px]">🍽️ Catering (#1)</a>
+                                        <p className="text-[10px] text-slate-500">Verás conteo de dietas en vivo.</p>
+                                    </li>
+                                    <li>
+                                        <a href="/portal/3" target="_blank" className="text-blue-700 font-bold hover:underline text-[11px]">🎵 DJ (#3)</a>
+                                        <p className="text-[10px] text-slate-500">Verás tu petición de canción.</p>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 italic pt-2 text-center">¡Disfruta del viaje completo! 🍷🎻</p>
+                        </div>
                     </div>
                 </div>
             </div>

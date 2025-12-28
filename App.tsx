@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import './index.css';
 import Hero from './components/Hero';
 import InfoSection from './components/InfoSection';
-import RegistrationForm from './components/RegistrationForm';
-import AdminPanel from './components/AdminPanel';
+import RSVPForm from './components/RSVPForm';
+import WeddingDashboard from './components/WeddingDashboard';
 import LandingV2 from './components/LandingV2';
+import EventosLayout from './components/eventossv/EventosLayout';
 
 import QRDisplay from './components/QRDisplay';
 import { waitForAuth } from './services/firebaseConfig';
@@ -28,25 +29,31 @@ const App: React.FC = () => {
     return <LandingV2 />;
   }
 
+  // Check for EventosSV SaaS
+  if (params.get('app') === 'eventossv') {
+    return <EventosLayout />;
+  }
+
   if (!authReady) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#fcfbf9] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 font-medium">Iniciando aplicación...</p>
+          <Loader2 className="w-10 h-10 text-[#c5a059] animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 font-serif italic">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#fcfbf9] flex flex-col font-sans text-slate-800">
       <Hero />
       <main className="flex-grow">
-        <InfoSection />
-        <RegistrationForm />
+        {/* InfoSection might be redundant or needs update, keeping for now but maybe verify content later */}
+        {/* <InfoSection /> */}
+        <RSVPForm />
       </main>
-      <AdminPanel />
+      <WeddingDashboard />
     </div>
   );
 };

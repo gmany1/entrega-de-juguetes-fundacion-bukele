@@ -1,21 +1,44 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Premium Wedding/Corporate Palette */
+    --color-gold: #D4AF37;
+    --color-gold-light: #F3E5AB;
+    --color-navy-dark: #0A1929;
+    --color-navy: #102A43;
+    --color-cream: #FAFAF9;
+    --color-text-primary: #1E293B;
+    --color-text-secondary: #64748B;
+}
 
 body {
+    background-color: var(--color-cream);
+    color: var(--color-text-primary);
     font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbar for better aesthetics */
-::-webkit-scrollbar {
-    width: 8px;
+/* Hard reset for tables to avoid double borders from old styles if any */
+table {
+    border-collapse: collapse;
+    border: none;
 }
 
-::-webkit-scrollbar-track {
-    background: #f1f5f9;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Playfair Display', serif;
 }
 
-::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+.font-serif {
+    font-family: 'Playfair Display', serif;
 }
 
 ::-webkit-scrollbar-thumb:hover {

@@ -1,85 +1,88 @@
-export interface Child {
-  id: string; // Unique ID for the child
+export interface Companion {
+  id: string; // Unique ID for the companion
   fullName: string;
-  age: number;
-  gender: string;
-  inviteNumber: string; // Unique invite per child
-  status: 'pending' | 'delivered';
-  deliveredAt?: string; // ISO string
+  age?: number; // Optional now, unless for kids menu
+  gender?: string; // Optional
+  mealPreference?: string; // Meat, Fish, Veggie, Kids
+  ticketCode: string; // Unique ticket per guest
+  status: 'pending' | 'checked_in';
+  checkedInAt?: string; // ISO string
 }
 
-export interface Registration {
+export interface GuestGroup {
   id: string;
-  parentName: string; // Renamed from fullName for clarity, but mapped for compatibility if needed
+  primaryGuestName: string; // Was parentName
   whatsapp: string;
-  department: string;
-  municipality: string;
-  district: string;
-  addressDetails: string;
-  ticketDistributor: string;
-  children: Child[];
+  email?: string; // New: Optional email contact
+  address?: string; // Was addressDetails
+  tableAssignment?: string; // Was ticketDistributor
+
+  companions: Companion[]; // Was children
   timestamp: string;
 
-  // Legacy/Compatibility fields (optional)
-  fullName?: string; // @deprecated use parentName
-  childCount?: number; // @deprecated derived from children.length
-  whatsappSent?: boolean; // Track if WA message was sent
-  inviteNumber?: string; // @deprecated used for single-child
-  genderSelection?: string; // @deprecated
-  childAge?: number; // @deprecated
+  // Wedding Specifics
+  dietaryRestrictions?: string;
+  songRequest?: string;
+  messageToCouple?: string;
+
+  // Legacy/Compatibility mapping (to avoid immediate breakages before full refactor)
+  // These will be computed getters or optional fields in the future
+  ticketDistributor?: string; // Mapped to tableAssignment
+  parentName?: string; // Mapped to primaryGuestName
 }
 
 export interface StorageResult {
   success: boolean;
   message?: string;
-  data?: Registration;
+  data?: GuestGroup;
 }
 
 export interface SystemUser {
   id: string;
   username: string;
-  password: string; // Plain text per requirements
-  role: 'admin' | 'verifier' | 'whatsapp_sender';
+  password: string;
+  role: 'admin' | 'scanner' | 'planner'; // 'verifier' -> 'scanner', 'whatsapp_sender' -> 'planner'
   name: string;
   whatsapp?: string;
-  assignedDistributor?: string;
 }
 
-export interface TicketDistributor {
+export interface TableAssignment { // Was TicketDistributor
   id?: string;
-  name: string;
-  phone?: string;
+  tableName: string; // Was name
+  capacity: number; // Was ranges (implied)
+  // Legacy range support for compat if needed, but we should move to direct assignment
   startRange?: number;
   endRange?: number;
 }
 
 export interface AppConfig {
-  // General
+  // Event Details
   eventDate: string;
-  maxRegistrations: number;
-  isRegistrationOpen: boolean;
-  ticketDistributors: TicketDistributor[]; // List of available distributors
+  venueName: string;
+  venueAddress: string;
+  maxGuests: number; // Was maxRegistrations
+  isRsvpOpen: boolean; // Was isRegistrationOpen
 
-  // Hero
+  tables: TableAssignment[]; // Was ticketDistributors
+
+  // Hero / Branding
   heroTitle: string;
   heroSubtitle: string;
   heroBackgroundImage: string; // URL
 
-  // Info Cards
-  infoTargetTitle: string;
-  infoTargetDescription: string;
-  infoRequirementsTitle: string;
-  infoRequirementsDescription: string;
+  // Info Cards (FAQ)
+  infoDressCodeTitle: string;
+  infoDressCodeDesc: string;
+  infoGiftTitle: string;
+  infoGiftDesc: string;
   infoLocationTitle: string;
-  infoLocationDescription: string;
+  infoLocationDesc: string;
 
-  // Location Defaults
-  defaultDepartment: string;
-  defaultMunicipality: string;
-  defaultDistrict: string;
+  // Default Location (Maybe less relevant for weddings unless destination)
+  defaultRegion?: string;
 
-  // WhatsApp
-  orgPhoneNumber: string;
+  // Contact
+  plannerPhoneNumber: string; // Was orgPhoneNumber
   whatsappTemplate: string;
 
   // vCard Info
@@ -89,41 +92,41 @@ export interface AppConfig {
   vCardUrl: string;
 }
 
-export const DEPARTMENTS = [
-  "Ahuachapán", "Cabañas", "Chalatenango", "Cuscatlán",
-  "La Libertad", "La Paz", "La Unión", "Morazán",
-  "San Miguel", "San Salvador", "San Vicente", "Santa Ana",
-  "Sonsonate", "Usulután"
+export const MEAL_OPTIONS = [
+  "Pollo", "Res", "Pescado", "Vegetariano", "Menú Infantil"
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-  eventDate: "23 de Diciembre",
-  maxRegistrations: 1000,
-  isRegistrationOpen: true,
-  ticketDistributors: [
-    { name: "Veronica Flores", phone: "", startRange: 1, endRange: 300 },
-    { name: "Roxana Miron", phone: "", startRange: 301, endRange: 500 },
-    { name: "Vladimir Mendoza", phone: "", startRange: 501, endRange: 800 },
-    { name: "Miguel Lazo", phone: "", startRange: 801, endRange: 850 }
-  ], // Default value
-  heroTitle: "Compartiendo Sonrisas",
-  heroSubtitle: "Gran Entrega de Juguetes 2025 - de la Fundación Armando Bukele",
-  heroBackgroundImage: "/hero-christmas.png",
-  infoTargetTitle: "¿Para quién es?",
-  infoTargetDescription: "Exclusivo para niños y niñas salvadoreños de 0 a 12 años de edad. Queremos que los más pequeños disfruten la magia de la Navidad.",
-  infoRequirementsTitle: "Requisitos",
-  infoRequirementsDescription: "Es indispensable contar con tu Número de Invitación válido y registrar un número de WhatsApp activo para recibir la confirmación.",
-  infoLocationTitle: "Lugar y Hora",
-  infoLocationDescription: "Por seguridad y orden, la ubicación exacta y la hora de tu turno serán enviadas exclusivamente a tu WhatsApp registrado.",
-  defaultDepartment: "Santa Ana",
-  defaultMunicipality: "Santa Ana Este",
-  defaultDistrict: "El Congo",
-  orgPhoneNumber: "50379017014",
-  whatsappTemplate: "*Hola, soy {name}.*\nConfirmo mi asistencia al evento *“Compartiendo Sonrisas”*.\nHe registrado *{count} invitaciones*:\n• {invites}\n\n👉 *Solicito que me envíen los detalles de lugar y hora por este mismo medio.*\n\n📲 Guardaré este número en mis contactos para futuras comunicaciones.\n\n🙏 *¡Que Dios me los bendiga!*",
+  eventDate: "14 de Febrero, 2026",
+  venueName: "Jardín de los Sueños",
+  venueAddress: "Km 12 Carretera a El Boquerón",
+  maxGuests: 200,
+  isRsvpOpen: true,
+  tables: [
+    { tableName: "Mesa Principal", capacity: 10 },
+    { tableName: "Familia Novio", capacity: 20 },
+    { tableName: "Familia Novia", capacity: 20 },
+    { tableName: "Amigos", capacity: 30 }
+  ],
+  heroTitle: "Nuestra Boda",
+  heroSubtitle: "Acompáñanos a celebrar nuestro amor",
+  heroBackgroundImage: "/hero-wedding.jpg", // Placeholder
+
+  infoDressCodeTitle: "Código de Vestimenta",
+  infoDressCodeDesc: "Formal / Etiqueta Rigurosa. Nos encantaría verte elegante para la ocasión.",
+
+  infoGiftTitle: "Regalos",
+  infoGiftDesc: "Su presencia es nuestro mejor regalo. Si desean tener un detalle, tendremos buzón de sobres.",
+
+  infoLocationTitle: "Ceremonia y Recepción",
+  infoLocationDesc: "Ambas se llevarán a cabo en el mismo lugar para su comodidad.",
+
+  plannerPhoneNumber: "50370000000",
+  whatsappTemplate: "*Hola, soy {name}.*\nConfirmo mi asistencia a la Boda de *Fulanita & Menganito*.\nAsistiremos *{count} personas*:\n• {invites}\n\n👉 *Espero los detalles finales y mi ubicación de mesa.*\n\n¡Gracias por la invitación!",
 
   // Default vCard
-  vCardName: "Medardo Linares",
-  vCardOrg: "Fundación Armando Bukele",
-  vCardPhone: "50379017014",
-  vCardUrl: "https://www.fundacionbukele.org"
+  vCardName: "Wedding Planner",
+  vCardOrg: "Eventos Exclusivos",
+  vCardPhone: "50370000000",
+  vCardUrl: "https://miboda.com"
 };

@@ -1,21 +1,22 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Check, X, QrCode, Loader2, PackageCheck, Wifi, WifiOff, RefreshCw, DownloadCloud } from 'lucide-react';
-import { Registration, Child } from '../types';
+import { Check, X, QrCode, Loader2, UserCheck, Wifi, WifiOff, RefreshCw, DownloadCloud, Utensils, Music } from 'lucide-react';
+import { GuestGroup, Companion } from '../types';
 import { useOfflineSync } from '../hooks/useOfflineSync';
 
 const ScanInterface: React.FC = () => {
+    // Note: useOfflineSync likely expects generic or old types. 
+    // We assume 'whitelist' returns GuestGroups array effectively same struct as before (id, children as companions)
     const { isOffline, whitelist, downloadWhitelist, addToQueue, queue, isSyncing } = useOfflineSync();
 
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [childValues, setChildValues] = useState<Child | null>(null);
-    const [parentData, setParentData] = useState<Registration | null>(null);
+
+    const [foundGuest, setFoundGuest] = useState<GuestGroup | null>(null);
+    const [foundCompanion, setFoundCompanion] = useState<Companion | null>(null);
+
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-    // Permission State
     const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -23,49 +24,40 @@ const ScanInterface: React.FC = () => {
     const requestCameraPermission = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            // Stop the stream immediately, checks only for permission
             stream.getTracks().forEach(track => track.stop());
             setPermissionGranted(true);
         } catch (err) {
             console.error("Camera permission denied", err);
-            alert("Es necesario permitir el acceso a la cámara para escanear tickets.");
+            alert("Es necesario permitir el acceso a la cámara.");
         }
     };
 
     useEffect(() => {
-        // Initialize Scanner ONLY if permission granted
         if (!permissionGranted) return;
-
-        // Ensure element exists before init
         const scannerElement = document.getElementById('reader');
         if (scannerElement && !scannerRef.current && !scanResult) {
             const scanner = new Html5QrcodeScanner(
                 "reader",
                 {
                     fps: 10,
-                    qrbox: { width: 300, height: 300 }, // Larger box
+                    qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
                     showTorchButtonIfSupported: true
                 },
                 false
             );
-
             scanner.render(onScanSuccess, onScanFailure);
             scannerRef.current = scanner;
         }
-
         return () => {
-            // Cleanup handled by success/reset logic manually to avoid double-clear issues
+            // Cleanup usually handled via scanner.clear() in success
         };
-    }, [scanResult, permissionGranted]); // Re-init when scanResult is cleared OR permission granted
+    }, [scanResult, permissionGranted]);
 
     const onScanSuccess = (decodedText: string, decodedResult: any) => {
         if (scanResult) return;
-
-        // Haptic Feedback
         if (navigator.vibrate) navigator.vibrate(200);
 
-        // Stop scanner logic
         if (scannerRef.current) {
             scannerRef.current.clear().catch(console.error);
             scannerRef.current = null;
@@ -78,289 +70,191 @@ const ScanInterface: React.FC = () => {
 
         try {
             const data = JSON.parse(decodedText);
+            // Expected: { groupId, companionId, code } OR { parentId, childId ... legacy }
+            const gId = data.groupId || data.parentId;
+            const cId = data.companionId || data.childId;
+            const code = data.code || data.invite || data.ticketCode;
 
-            // Validate Structure
-            if (!data.parentId || !data.childId) {
-                throw new Error("Formato QR incorrecto.");
-            }
+            if (!gId) throw new Error("QR Incompleto");
 
-            verifyTicket(data);
+            processTicket(gId, cId, code);
 
         } catch (e) {
             console.error(e);
-            setError("QR inválido o irreconocible.");
+            setError("QR inválido o formato desconocido.");
             setLoading(false);
         }
     };
 
-    const onScanFailure = (error: any) => {
-        // console.warn(`Code scan error = ${error}`);
-    };
+    const processTicket = (groupId: string, companionId: string | undefined, code: string | undefined) => {
+        // Find Group
+        let group = (whitelist as unknown as GuestGroup[]).find(g => g.id === groupId);
 
-    const verifyTicket = (qrData: any) => {
-        const { parentId, childId, invite } = qrData;
-
-        let localParent: Registration | undefined;
-        let foundChild: Child | undefined;
-
-        // STRATEGY 1: Direct ID Match (Fastest)
-        localParent = whitelist.find(p => p.id === parentId);
-
-        // STRATEGY 2: Legacy Group ID Fix (Virtual to Real ID)
-        if (!localParent && parentId && parentId.startsWith('legacy_group_')) {
-            localParent = whitelist.find(p => p.id === childId);
+        // Fallback: search by code if ID not found directly (maybe legacy ID mismatch)
+        if (!group && code) {
+            group = (whitelist as unknown as GuestGroup[]).find(g => g.companions?.some(c => c.ticketCode === code));
         }
 
-        // STRATEGY 3: Invite Number Lookup (Fallback for Broken IDs)
-        if (!localParent && invite) {
-            // Check Root Level (Legacy)
-            localParent = whitelist.find(p => p.inviteNumber === invite);
-
-            // Check Children Level (Modern)
-            if (!localParent) {
-                localParent = whitelist.find(p => p.children?.some(c => c.inviteNumber === invite));
-            }
-        }
-
-        if (localParent) {
-            setParentData(localParent);
-
-            // Normalize children for legacy support
-            const children = (localParent.children && localParent.children.length > 0)
-                ? localParent.children
-                : [{
-                    fullName: `${localParent.genderSelection || 'Niño/a'} ${localParent.childAge ? `(${localParent.childAge} años)` : ''} (Registro Digital)`,
-                    inviteNumber: localParent.inviteNumber || '???',
-                    id: 'legacy',
-                    age: localParent.childAge || 0,
-                    gender: localParent.genderSelection || 'N/A'
-                } as any];
-
-            // Resolve Child
-            // 1. Try ID match
-            foundChild = children.find(c => c.id === childId);
-
-            // 2. Try Invite match (if we found parent via invite, ensure we grab the right child)
-            if (!foundChild && invite) {
-                foundChild = children.find(c => c.inviteNumber === invite);
-            }
-
-            // 3. Fallback for single-child/legacy
-            if (!foundChild && (childId === 'legacy' || children.length === 1)) {
-                foundChild = children[0];
-            }
-
-            if (foundChild) {
-                // Check if locally pending
-                // Use localParent.id (Real ID) for queue check to ensure consistency
-                const isPendingInQueue = queue.some(q => q.parentId === localParent!.id && q.childId === foundChild!.id);
-                if (isPendingInQueue) {
-                    foundChild = { ...foundChild, status: 'delivered' };
-                }
-
-                setChildValues(foundChild);
-                setLoading(false);
-                return;
-            }
-        }
-
-        // 2. If not in whitelist, valid error?
-        // If we are strictly offline, we can't do anything else.
-        if (whitelist.length > 0) {
-            setError("Ticket no encontrado en la lista descargada. Actualiza la lista si es reciente.");
+        if (!group) {
+            setError("Invitado no encontrado en la lista offline. Actualiza la lista.");
             setLoading(false);
             return;
         }
 
-        // 3. Fallback (shouldn't really happen if we enforce download, but for safety)
-        setError("Lista de validación vacía. Descarga la lista primero.");
-        setLoading(false);
+        setFoundGuest(group);
+
+        // Find Companion
+        let comp: Companion | undefined;
+        if (companionId) {
+            comp = group.companions?.find(c => c.id === companionId);
+        }
+        if (!comp && code) {
+            comp = group.companions?.find(c => c.ticketCode === code);
+        }
+
+        // If no companion found but group exists, maybe single ticket?
+        if (!comp && group.companions?.length === 1) {
+            comp = group.companions[0];
+        }
+
+        if (comp) {
+            // Check status in Queue (Optimistic check)
+            const queued = queue.some(q => q.parentId === group!.id && q.childId === comp!.id);
+            if (queued) {
+                comp = { ...comp, status: 'checked_in' };
+            }
+            setFoundCompanion(comp);
+            setLoading(false);
+        } else {
+            setError("Grupo encontrado, pero boleto específico no válido.");
+            setLoading(false);
+        }
     };
 
-    const handleDeliver = () => {
-        if (!parentData || !childValues) return;
-
+    const handleCheckIn = () => {
+        if (!foundGuest || !foundCompanion) return;
         setLoading(true);
 
-        // Optimistic Offline Add
-        addToQueue(parentData.id, childValues.id);
+        // Optimistic
+        addToQueue(foundGuest.id, foundCompanion.id);
 
-        setSuccessMessage(`¡Entrega registrada offline! (${queue.length + 1} pendientes)`);
-        setChildValues({ ...childValues, status: 'delivered', deliveredAt: new Date().toISOString() });
+        setSuccessMessage(`¡Bienvenido/a ${foundCompanion.fullName}!`);
+
+        // Update local state visually
+        setFoundCompanion({ ...foundCompanion, status: 'checked_in', checkedInAt: new Date().toISOString() });
         setLoading(false);
     };
+
+    const onScanFailure = (err: any) => { };
 
     const resetScan = () => {
         setScanResult(null);
-        setChildValues(null);
-        setParentData(null);
+        setFoundGuest(null);
+        setFoundCompanion(null);
         setError(null);
         setSuccessMessage(null);
-        // Effect will re-init scanner
     };
 
     return (
-        <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
-
-            {/* Offline Status Bar */}
-            <div className="w-full bg-slate-100 rounded-lg p-3 mb-4 flex items-center justify-between shadow-inner">
+        <div className="flex flex-col items-center justify-center w-full max-w-lg mx-auto">
+            {/* Offline Bar */}
+            <div className="w-full bg-white rounded-sm p-3 mb-6 flex items-center justify-between shadow-sm border border-slate-200">
                 <div className="flex items-center gap-3">
                     {isOffline ? (
-                        <div className="flex items-center gap-2 text-orange-600 font-bold text-sm">
-                            <WifiOff size={18} /> Offline
+                        <div className="flex items-center gap-2 text-orange-600 font-bold text-xs uppercase tracking-wider">
+                            <WifiOff size={14} /> Offline
                         </div>
                     ) : (
-                        <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
-                            <Wifi size={18} /> Online
+                        <div className="flex items-center gap-2 text-green-600 font-bold text-xs uppercase tracking-wider">
+                            <Wifi size={14} /> Online
                         </div>
                     )}
-                    <span className="text-xs text-slate-400">|</span>
-                    <div className="flex flex-col leading-none">
-                        <span className="text-xs text-slate-900 font-bold">
-                            {whitelist.reduce((acc, r) => acc + (r.children?.length || 1), 0)} Tickets
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                            ({whitelist.length} Familias)
-                        </span>
-                    </div>
+                    <span className="text-xs text-slate-300">|</span>
+                    <span className="text-xs text-slate-500 font-serif italic">
+                        {(whitelist as any[]).length} Grupos Cargados
+                    </span>
                 </div>
-
                 <div className="flex gap-2">
                     {queue.length > 0 && (
-                        <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold border border-orange-200 animate-pulse">
-                            {queue.length} Pendientes
+                        <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold animate-pulse">
+                            {queue.length} Cola
                         </span>
                     )}
-                    <button
-                        onClick={downloadWhitelist}
-                        disabled={isSyncing || isOffline}
-                        className="p-1.5 bg-white text-slate-600 rounded border hover:bg-slate-50 disabled:opacity-50"
-                        title="Descargar Lista"
-                    >
+                    <button onClick={downloadWhitelist} disabled={isSyncing} className="p-1.5 hover:bg-slate-50 border rounded-sm text-slate-600">
                         {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
                     </button>
                 </div>
             </div>
 
-            {/* Scanner Container */}
             {!permissionGranted ? (
-                <div className="w-full bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center">
-                    <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <QrCode className="w-8 h-8 text-blue-600" />
+                <div className="w-full bg-white p-10 rounded-sm shadow-xl text-center border-t-4 border-[#c5a059]">
+                    <div className="bg-[#1e293b] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-[#c5a059]">
+                        <QrCode size={32} />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">Habilitar Escáner</h3>
-                    <p className="text-slate-500 mb-6 text-sm">Necesitamos acceso a tu cámara para verificar las invitaciones.</p>
-                    <button
-                        onClick={requestCameraPermission}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full w-full transition-all active:scale-95 shadow-lg shadow-blue-200"
-                    >
-                        Activar Cámara
+                    <h3 className="text-xl font-serif text-slate-800 mb-2">Habilitar Cámara</h3>
+                    <button onClick={requestCameraPermission} className="bg-[#c5a059] text-white px-6 py-3 rounded-sm uppercase tracking-widest text-sm font-bold shadow-lg hover:bg-[#b08d4b] transition-all">
+                        Activar
                     </button>
                 </div>
             ) : (!scanResult && (
-                <div className="w-full animate-fade-in">
-                    <div id="reader" className="w-full rounded-xl overflow-hidden shadow-sm"></div>
-                    <p className="text-center text-slate-500 mt-4 text-sm">Apunta la cámara al código QR de la invitación.</p>
+                <div className="w-full animate-fade-in relative">
+                    <div id="reader" className="w-full rounded-sm overflow-hidden border-2 border-[#e6cfa3]"></div>
+                    <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center">
+                        <div className="w-64 h-64 border-2 border-white/50 rounded-lg"></div>
+                    </div>
                 </div>
             ))}
 
-            {/* Loading */}
-            {loading && (
-                <div className="p-8 flex flex-col items-center animate-fade-in">
-                    <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                    <p className="text-slate-600 font-medium">Procesando...</p>
-                </div>
-            )}
+            {loading && <div className="p-10"><Loader2 className="w-10 h-10 animate-spin text-[#c5a059]" /></div>}
 
-            {/* Error State */}
             {error && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-lg shadow-sm w-full animate-fade-in mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-red-100 p-3 rounded-full">
-                            <X className="w-8 h-8 text-red-600" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-red-800">No Encontrado / Válido</h3>
-                            <p className="text-red-700">{error}</p>
-                        </div>
-                    </div>
-                    <button onClick={resetScan} className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 w-full">
-                        Escanear Otro
-                    </button>
+                <div className="bg-red-50 border border-red-200 text-red-800 p-6 rounded-sm w-full mb-6 text-center">
+                    <X className="w-8 h-8 mx-auto mb-2 text-red-500" />
+                    <p className="font-bold">{error}</p>
+                    <button onClick={resetScan} className="mt-4 text-sm underline">Intentar de nuevo</button>
                 </div>
             )}
 
-            {/* Result Card */}
-            {childValues && parentData && !loading && !error && (
-                <div className="bg-white rounded-2xl shadow-xl w-full border border-slate-200 overflow-hidden animate-fade-in max-w-sm mx-auto">
-
-                    {/* Header - Validation Status */}
-                    <div className="bg-slate-900 text-white p-4 text-center">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Detalles del Invitado</h2>
-                    </div>
-
-                    {/* Status Banner */}
-                    <div className={`py-2 text-center text-xs font-bold uppercase tracking-widest ${childValues.status === 'delivered' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                        {childValues.status === 'delivered' ? '⚠️ YA ENTREGADO' : '✅ TICKET VÁLIDO'}
-                    </div>
-
-                    {/* Essential Info */}
-                    <div className="p-6 text-center space-y-6">
-
-                        {/* Invitation Number */}
-                        <div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Número de Invitación</p>
-                            <div className="text-4xl font-black text-slate-800 font-mono tracking-tighter bg-slate-50 py-2 rounded-lg border border-slate-100">
-                                {childValues.inviteNumber}
-                            </div>
+            {foundGuest && foundCompanion && !loading && !error && (
+                <div className="bg-white rounded-sm shadow-2xl w-full border-t-4 border-[#c5a059] overflow-hidden animate-fade-in">
+                    <div className="p-6 text-center">
+                        <div className="inline-block px-3 py-1 bg-slate-100 rounded-full text-[10px] uppercase tracking-widest text-slate-500 mb-4">
+                            {foundCompanion.ticketCode}
                         </div>
 
-                        {/* Child Info */}
-                        <div className="grid grid-cols-2 gap-4 text-left">
+                        <h2 className="text-3xl font-serif text-slate-800 mb-2">{foundCompanion.fullName}</h2>
+                        <p className="text-slate-500 text-sm mb-6">Grupo de {foundGuest.primaryGuestName}</p>
+
+                        <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-6 mb-6">
                             <div>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Niño/a</p>
-                                <div className="font-bold text-slate-700 leading-tight">
-                                    {childValues.fullName || "Sin Nombre"}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-1">{childValues.age} Años • {childValues.gender}</div>
+                                <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Mesa</div>
+                                <div className="font-serif text-xl text-[#1e293b]">{foundGuest.tableAssignment || "Sin Asignar"}</div>
                             </div>
                             <div>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Responsable</p>
-                                <div className="font-bold text-slate-700 leading-tight">
-                                    {parentData.parentName || parentData.fullName}
+                                <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Platillo</div>
+                                <div className="font-serif text-xl text-[#1e293b] flex items-center justify-center gap-2">
+                                    <Utensils size={16} className="text-[#c5a059]" />
+                                    {foundCompanion.mealPreference || "Estándar"}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="pt-2 pb-2">
-                            <p className="text-xs font-bold text-red-500 uppercase tracking-widest border border-red-200 bg-red-50 py-1.5 px-3 rounded-md inline-block">
-                                Invitación Única e Intransferible
-                            </p>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="pt-2">
-                            {childValues.status !== 'delivered' && !successMessage ? (
-                                <button
-                                    onClick={handleDeliver}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl text-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-[0.98]"
-                                >
-                                    <PackageCheck className="w-6 h-6" />
-                                    ENTREGAR (OFFLINE)
-                                </button>
-                            ) : (
-                                <div className="bg-slate-100 text-slate-500 py-3 rounded-xl font-bold border border-slate-200">
-                                    {successMessage || "Ticket Procesado"}
-                                </div>
-                            )}
-
+                        {foundCompanion.status === 'checked_in' ? (
+                            <div className="bg-green-50 text-green-800 p-4 rounded-sm border border-green-200 font-bold flex items-center justify-center gap-2">
+                                <Check size={20} /> YA INGRESÓ
+                            </div>
+                        ) : (
                             <button
-                                onClick={resetScan}
-                                className="mt-3 w-full text-slate-400 hover:text-slate-600 font-medium py-3 rounded-xl transition-colors text-sm hover:underline"
+                                onClick={handleCheckIn}
+                                className="w-full bg-[#1e293b] text-white py-4 rounded-sm uppercase tracking-widest font-bold hover:bg-[#0f172a] shadow-lg flex items-center justify-center gap-2"
                             >
-                                Escanear Siguiente
+                                <UserCheck /> Marcar Ingreso
                             </button>
-                        </div>
+                        )}
+
+                        <button onClick={resetScan} className="mt-6 text-slate-400 text-sm hover:text-slate-600">
+                            Escanear Siguiente
+                        </button>
                     </div>
                 </div>
             )}

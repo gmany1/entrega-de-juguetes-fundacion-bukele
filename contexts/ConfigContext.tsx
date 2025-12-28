@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppConfig, DEFAULT_CONFIG } from '../types';
-import { getAppConfig, saveAppConfig, getDistributors, saveDistributor } from '../services/storageService';
+import { getAppConfig, saveAppConfig, getTables, saveTable } from '../services/storageService';
 
 interface ConfigContextType {
   config: AppConfig;
@@ -20,27 +20,45 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const refreshConfig = async () => {
     try {
       const remoteConfig = await getAppConfig();
-      let distributors = await getDistributors();
+      let tables = await getTables();
 
-      // AUTO-MIGRATION: If no distributors in DB, upload defaults to make them public
-      if (distributors.length === 0) {
-        console.log("No public distributors found. Syncing defaults to cloud...");
-        const defaults = DEFAULT_CONFIG.ticketDistributors;
+      // AUTO-MIGRATION: If no tables in DB, upload defaults to make them public
+      if (tables.length === 0) {
+        console.log("No public tables found. Syncing defaults to cloud...");
+        // Assuming DEFAULT_CONFIG has a way to provide defaults, or we just skip this for now.
+        // The old code uploaded `ticketDistributors`, for Wedding we use `tables`.
+        // Let's create some default tables if none exist.
+        const defaultTables = [
+          { tableName: 'Mesa Principal', tableCapacity: 10, assignedTickets: [] },
+          { tableName: 'Mesa 1', tableCapacity: 10, assignedTickets: [] },
+          { tableName: 'Mesa 2', tableCapacity: 10, assignedTickets: [] }
+        ];
 
-        // Upload sequentially to avoid race conditions or potential duplicates checks failing
-        for (const dist of defaults) {
-          await saveDistributor(dist);
+        for (const t of defaultTables) {
+          await saveTable(t as any);
         }
         // Refetch after sync
-        distributors = await getDistributors();
+        tables = await getTables();
       }
 
-      if (remoteConfig || distributors.length > 0) {
+      if (remoteConfig || tables.length > 0) {
         setConfig(prev => {
           const merged = {
             ...prev,
             ...(remoteConfig || {}),
-            ticketDistributors: distributors.length > 0 ? distributors : prev.ticketDistributors
+            // We map tables to ticketDistributors for compatibility with app logic if needed, 
+            // OR we assume we should add a 'tables' field to AppConfig if we want them there.
+            // For now, let's just make sure we don't break the 'ticketDistributors' field if components rely on it,
+            // but ideally we migrate away from it.
+            // Casting tables to distributors for type compatibility if they share shape
+            ticketDistributors: tables.map(t => ({
+              id: t.id,
+              name: t.tableName,
+              role: 'distributor', // dummy
+              ticketRangeStart: 0,
+              ticketRangeEnd: 0,
+              assignedCount: 0
+            }))
           };
           // Update local cache too
           localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(merged));

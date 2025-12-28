@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { Registration, Child } from '../types';
-import { getRegistrations, updateChildStatus } from '../services/storageService';
+import { GuestGroup as Registration, Companion as Child } from '../types';
+import { getGuestGroups as getRegistrations, updateCompanionStatus as updateChildStatus } from '../services/storageService';
 import { openDB, DBSchema } from 'idb';
 
 const DB_NAME = 'juguetes-offline-db';
@@ -23,7 +23,7 @@ interface OfflineDB extends DBSchema {
 export interface OfflineQueueItem {
     parentId: string;
     childId: string;
-    status: 'delivered';
+    status: 'checked_in';
     timestamp: string;
     synced: boolean;
     id?: number; // Auto-increment ID from IDB
@@ -159,7 +159,7 @@ export const useOfflineSync = () => {
         const newItem: OfflineQueueItem = {
             parentId,
             childId,
-            status: 'delivered',
+            status: 'checked_in',
             timestamp: new Date().toISOString(),
             synced: false
         };
@@ -181,7 +181,7 @@ export const useOfflineSync = () => {
             if (parent.children) {
                 const childIdx = parent.children.findIndex(c => c.id === childId);
                 if (childIdx !== -1) {
-                    parent.children[childIdx] = { ...parent.children[childIdx], status: 'delivered', deliveredAt: newItem.timestamp };
+                    parent.children[childIdx] = { ...parent.children[childIdx], status: 'checked_in', checkedInAt: newItem.timestamp };
                 }
             }
             newWhitelist[parentIdx] = parent;

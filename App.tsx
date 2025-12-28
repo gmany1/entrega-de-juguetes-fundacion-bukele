@@ -104,9 +104,15 @@ const App: React.FC = () => {
           <Route path="settings" element={<SettingsPage />} />
 
           {/* Fallback for unknown admin routes */}
-          <Route path="portal/:id" element={<VendorPortal />} />
           <Route path="*" element={<div>Página no encontrada</div>} />
         </Route>
+
+        {/* Vendor Portal (Shared Context for Demo) */}
+        <Route path="/portal/:id" element={
+          <AdminProvider>
+            <VendorPortal />
+          </AdminProvider>
+        } />
 
         {/* Global Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

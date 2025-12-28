@@ -134,10 +134,32 @@ const SaaSLogin: React.FC<SaaSLoginProps> = ({
                         </button>
                     </form>
 
-                    <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-center gap-6 text-slate-400">
-                        <ShieldCheck size={20} className="hover:text-[#D4AF37] transition-colors cursor-pointer" />
-                        <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
-                        <Lock size={20} className="hover:text-[#D4AF37] transition-colors cursor-pointer" />
+                </div>
+
+                {/* DEMO MODE HELPERS */}
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs text-slate-500">
+                        <p className="font-bold text-[#0A1929] mb-2 uppercase tracking-wide">🔧 Demo Access Check</p>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <p className="font-bold text-slate-700">Planner (Admin)</p>
+                                <code className="bg-white border border-slate-200 px-1 py-0.5 rounded">admin</code> / <code className="bg-white border border-slate-200 px-1 py-0.5 rounded">admin123</code>
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-700">Scanner (Gate)</p>
+                                <code className="bg-white border border-slate-200 px-1 py-0.5 rounded">scanner</code> / <code className="bg-white border border-slate-200 px-1 py-0.5 rounded">scan123</code>
+                            </div>
+                        </div>
+
+                        <p className="font-bold text-[#0A1929] mb-2 uppercase tracking-wide pt-2 border-t border-slate-200">🔗 Quick Links (Public)</p>
+                        <ul className="space-y-1">
+                            <li><a href="/boda/demo-boda-123" target="_blank" className="text-blue-600 hover:underline">Wedding Site (Boda)</a></li>
+                            <li><a href="/boda/demo-boda-123/rsvp" target="_blank" className="text-blue-600 hover:underline">RSVP Inv. (Code: BODA-123)</a></li>
+                            <li><a href="/scanner" target="_blank" className="text-blue-600 hover:underline">Scanner App</a></li>
+                            <li><a href="/portal/1" target="_blank" className="text-blue-600 hover:underline">Vendor: Catering (#1)</a></li>
+                            <li><a href="/portal/3" target="_blank" className="text-blue-600 hover:underline">Vendor: DJ (#3)</a></li>
+                        </ul>
                     </div>
                 </div>
             </div>

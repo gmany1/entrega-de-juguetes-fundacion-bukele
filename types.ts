@@ -5,7 +5,8 @@ export interface Companion {
   gender?: string; // Optional
   mealPreference?: string; // Meat, Fish, Veggie, Kids
   ticketCode: string; // Unique ticket per guest
-  status: 'pending' | 'checked_in';
+  status: 'pending' | 'checked_in'; // Check-in status at the door
+  rsvpStatus?: 'confirmed' | 'declined' | 'pending'; // RSVP status from website
   checkedInAt?: string; // ISO string
 }
 
@@ -18,7 +19,8 @@ export interface GuestGroup {
   tableAssignment?: string; // Was ticketDistributor
 
   companions: Companion[]; // Was children
-  timestamp: string;
+  timestamp: string; // Creation timestamp
+  rsvpLastModified?: string; // ISO string for sync conflict resolution
 
   // Wedding Specifics
   dietaryRestrictions?: string;

@@ -12,6 +12,35 @@ import {
 import { waitForAuth, auth } from '../services/firebaseConfig';
 import { useConfig } from './ConfigContext';
 
+// Mock Data for Demo
+const MOCK_REGISTRATIONS: GuestGroup[] = [
+    {
+        id: 'mock1',
+        primaryGuestName: 'Familia Pérez-López',
+        whatsapp: '+503 7777-1234',
+        tableAssignment: 'Mesa 4',
+        dietaryRestrictions: '1x Vegetariano',
+        songRequest: 'La Bamba - Ritchie Valens',
+        messageToCouple: '¡Muchas felicidades! Nos vemos en la pista.',
+        companions: [
+            { id: 'c1', fullName: 'Juan Pérez', ticketCode: 'PER-001', age: 35, mealPreference: 'Carne', status: 'checked_in' },
+            { id: 'c2', fullName: 'Maria López', ticketCode: 'PER-002', age: 32, mealPreference: 'Vegetariano', status: 'checked_in' }
+        ],
+        timestamp: new Date().toISOString()
+    },
+    {
+        id: 'mock2',
+        primaryGuestName: 'Carlos Martinez (Amigo Novio)',
+        whatsapp: '+503 7000-5678',
+        tableAssignment: 'Mesa 8',
+        songRequest: 'Vivir Mi Vida - Marc Anthony',
+        companions: [
+            { id: 'c3', fullName: 'Carlos Martinez', ticketCode: 'MAR-001', age: 28, mealPreference: 'Pollo', status: 'pending' }
+        ],
+        timestamp: new Date().toISOString()
+    }
+];
+
 interface AdminContextType {
     registrations: GuestGroup[];
     users: SystemUser[];
@@ -59,7 +88,7 @@ export const AdminProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     getRegistrations(),
                     getSystemUsers()
                 ]);
-                setRegistrations(regs);
+                setRegistrations([...regs, ...MOCK_REGISTRATIONS]);
                 setUsers(usrs);
             }
         } catch (err: any) {
@@ -72,6 +101,13 @@ export const AdminProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => {
         loadData();
+
+        // Polling for "Live" updates as per Logistics Narrative
+        const intervalId = setInterval(() => {
+            refreshData();
+        }, 15000); // Poll every 15 seconds
+
+        return () => clearInterval(intervalId);
     }, []);
 
     const refreshData = async () => {

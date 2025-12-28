@@ -2,7 +2,7 @@ import React from 'react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { useConfig } from '../../contexts/ConfigContext';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Users, Ticket, CheckCircle, Clock, PieChart as PieIcon, Contact, MapPin, BarChart3, TrendingUp } from 'lucide-react';
+import { Users, Ticket, CheckCircle, Clock, PieChart as PieIcon, Contact, MapPin, BarChart3, TrendingUp, ScanLine } from 'lucide-react';
 
 const StatCard = ({ title, value, subtext, icon, color }: { title: string, value: string | number, subtext?: string, icon: React.ReactNode, color: string }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between">
@@ -47,30 +47,30 @@ const DashboardTab: React.FC = () => {
             {/* KPI Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    title="Registros Familiares"
-                    value={stats.totalRegistrations}
-                    subtext="Familias inscritas"
+                    title="Invitados Totales"
+                    value={config.maxRegistrations}
+                    subtext="Capacidad del evento"
                     icon={<Users />}
                     color="text-blue-600"
                 />
                 <StatCard
-                    title="Tickets Generados"
-                    value={stats.totalTickets}
-                    subtext={`${percentRegistered}% de la meta (${config.maxRegistrations})`}
-                    icon={<Ticket />}
+                    title="Confirmados (RSVP)"
+                    value={stats.totalTickets} // Functionally mapping 'tickets' to 'confirmed' for this context
+                    subtext={`${percentRegistered}% de asistencia esperada`}
+                    icon={<CheckCircle />}
                     color="text-purple-600"
                 />
                 <StatCard
-                    title="Juguetes Entregados"
-                    value={stats.deliveredCount}
-                    subtext={`${percentDelivered}% completado`}
-                    icon={<CheckCircle />}
+                    title="Check-in Realizado"
+                    value={stats.deliveredCount} // Mapping 'delivered' to 'checked-in'
+                    subtext={`${percentDelivered}% de los confirmados`}
+                    icon={<ScanLine />}
                     color="text-green-600"
                 />
                 <StatCard
-                    title="Pendientes de Entrega"
-                    value={stats.pendingCount}
-                    subtext="Niños en espera"
+                    title="Pendientes de Llegar"
+                    value={stats.totalTickets - stats.deliveredCount}
+                    subtext="Esperando llegada"
                     icon={<Clock />}
                     color="text-orange-500"
                 />
